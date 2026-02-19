@@ -1,0 +1,18 @@
+# railway.toml — OpenClaw Railway deployment
+# https://docs.railway.com/reference/config-as-code
+
+[build]
+builder = "DOCKERFILE"
+
+[deploy]
+# $PORT is injected by Railway automatically.
+# --bind lan sets bind address to 0.0.0.0 (required for Railway's proxy).
+# --allow-unconfigured lets the gateway start before setup wizard completes.
+startCommand = "node openclaw.mjs gateway --allow-unconfigured --bind lan --port $PORT"
+
+# Control UI serves HTTP 200 at /. No HTTP /health endpoint exists in this codebase.
+healthcheckPath = "/"
+healthcheckTimeout = 300
+
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
