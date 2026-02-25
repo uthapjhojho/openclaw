@@ -9,8 +9,8 @@ set -e
 
 # Repair gateway.auth.mode if it holds an invalid value.
 # Valid values (from src/config/types.gateway.ts): token | password | trusted-proxy
-# Uses write-to-temp-then-rename to avoid EACCES on the original file.
-# rename(2) only requires write permission on the directory, not the file itself.
+# Uses write-to-tmp-dir-then-rename to avoid EACCES on volume-mounted dirs.
+# Temp file is written to os.tmpdir() so root-owned Railway volumes are safe.
 node - <<'JSEOF'
 const fs = require("fs");
 const os = require("os");
@@ -33,9 +33,11 @@ try {
   if (mode && !validModes.includes(mode)) {
     console.log("[railway-start] Removing invalid gateway.auth.mode:", mode);
     delete cfg.gateway.auth.mode;
-    // Write to a temp file in the same directory then rename over the original.
-    // rename(2) only needs write permission on the directory, not the file.
-    const tmpPath = path.join(stateDir, ".openclaw.json.tmp");
+    // Write to a temp file in os.tmpdir() to avoid EACCES on volume-mounted
+    // directories owned by root (Railway volumes are mounted as root, but the
+    // container runs as the non-root 'node' user).  Then rename over the
+    // original; rename(2) only needs write permission on the target directory.
+    const tmpPath = path.join(os.tmpdir(), ".openclaw.json.tmp");
     fs.writeFileSync(tmpPath, JSON.stringify(cfg, null, 2));
     fs.renameSync(tmpPath, configPath);
     console.log("[railway-start] Config patched at", configPath);
