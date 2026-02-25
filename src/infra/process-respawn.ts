@@ -9,6 +9,7 @@ export type GatewayRespawnResult = {
 };
 
 const SUPERVISOR_HINT_ENV_VARS = [
+  "OPENCLAW_SUPERVISED",
   "LAUNCH_JOB_LABEL",
   "LAUNCH_JOB_NAME",
   "INVOCATION_ID",

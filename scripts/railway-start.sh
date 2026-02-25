@@ -91,6 +91,9 @@ try {
   }
 
   if (dirty) {
+    // Stamp meta.lastTouchedAt so downstream readers can detect stale configs.
+    if (!cfg.meta) cfg.meta = {};
+    cfg.meta.lastTouchedAt = new Date().toISOString();
     // Write to a temp file in the same directory then rename over the original.
     // rename(2) only needs write permission on the directory, not the file.
     const tmpPath = path.join(stateDir, ".openclaw.json.tmp");

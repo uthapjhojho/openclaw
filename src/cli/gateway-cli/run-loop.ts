@@ -91,7 +91,9 @@ export async function runGatewayLoop(params: {
                 : "supervisor restart";
             gatewayLog.info(`restart mode: full process restart (${modeLabel})`);
             cleanupSignals();
-            params.runtime.exit(0);
+            // In supervised mode, exit with code 1 so Railway's ON_FAILURE
+            // restart policy triggers a clean container relaunch.
+            params.runtime.exit(respawn.mode === "supervised" ? 1 : 0);
           } else {
             if (respawn.mode === "failed") {
               gatewayLog.warn(
