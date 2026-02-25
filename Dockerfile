@@ -42,6 +42,7 @@ RUN chown -R node:node /app
 # /data/workspace (OPENCLAW_WORKSPACE_DIR) on the persistent volume.
 # Containers are isolated by Railway's runtime; the operational requirement of
 # writable volume paths takes priority over the non-root hardening in this deployment.
+USER root
 
 # Start gateway server with default config.
 # Binds to loopback (127.0.0.1) by default for security.
