@@ -27,19 +27,40 @@ if (!fs.existsSync(configPath)) {
 try {
   const raw = fs.readFileSync(configPath, "utf8");
   const cfg = JSON.parse(raw);
+  let dirty = false;
+
+  // Repair gateway.auth.mode if it holds an invalid value.
   const validModes = ["token", "password", "trusted-proxy"];
   const mode = cfg && cfg.gateway && cfg.gateway.auth && cfg.gateway.auth.mode;
   if (mode && !validModes.includes(mode)) {
     console.log("[railway-start] Removing invalid gateway.auth.mode:", mode);
     delete cfg.gateway.auth.mode;
+    dirty = true;
+  } else {
+    console.log("[railway-start] Config OK (gateway.auth.mode:", mode || "unset", ")");
+  }
+
+  // Ensure gateway.controlUi.allowInsecureAuth is true so the Control UI can
+  // authenticate via shared secret alone (no device-token pairing required).
+  // Railway serves over plain HTTP, so this flag must be set to avoid
+  // device_token_mismatch errors after redeploys.
+  if (!cfg.gateway) cfg.gateway = {};
+  if (!cfg.gateway.controlUi) cfg.gateway.controlUi = {};
+  if (cfg.gateway.controlUi.allowInsecureAuth !== true) {
+    console.log("[railway-start] Setting gateway.controlUi.allowInsecureAuth = true");
+    cfg.gateway.controlUi.allowInsecureAuth = true;
+    dirty = true;
+  } else {
+    console.log("[railway-start] gateway.controlUi.allowInsecureAuth already true");
+  }
+
+  if (dirty) {
     // Write to a temp file in the same directory then rename over the original.
     // rename(2) only needs write permission on the directory, not the file.
     const tmpPath = path.join(stateDir, ".openclaw.json.tmp");
     fs.writeFileSync(tmpPath, JSON.stringify(cfg, null, 2));
     fs.renameSync(tmpPath, configPath);
     console.log("[railway-start] Config patched at", configPath);
-  } else {
-    console.log("[railway-start] Config OK (gateway.auth.mode:", mode || "unset", ")");
   }
 } catch (err) {
   console.error("[railway-start] Failed to patch config:", err.message);
