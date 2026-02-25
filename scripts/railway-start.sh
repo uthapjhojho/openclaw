@@ -64,6 +64,16 @@ try {
     console.log("[railway-start] gateway.controlUi.allowInsecureAuth already true");
   }
 
+  // Ensure gateway.controlUi.dangerouslyDisableDeviceAuth is true to disable
+  // device authentication on the Control UI for Railway deployments.
+  if (cfg.gateway.controlUi.dangerouslyDisableDeviceAuth !== true) {
+    console.log("[railway-start] Setting gateway.controlUi.dangerouslyDisableDeviceAuth = true");
+    cfg.gateway.controlUi.dangerouslyDisableDeviceAuth = true;
+    dirty = true;
+  } else {
+    console.log("[railway-start] gateway.controlUi.dangerouslyDisableDeviceAuth already true");
+  }
+
   if (dirty) {
     // Write to a temp file in the same directory then rename over the original.
     // rename(2) only needs write permission on the directory, not the file.
