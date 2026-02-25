@@ -8,7 +8,7 @@ builder = "DOCKERFILE"
 # $PORT is injected by Railway automatically.
 # --bind lan sets bind address to 0.0.0.0 (required for Railway's proxy).
 # --allow-unconfigured lets the gateway start before setup wizard completes.
-startCommand = "doppler run -p algo_ranger_bot -c prd -- node openclaw.mjs gateway --allow-unconfigured --bind lan --port \"$PORT\""
+startCommand = "doppler run -p algo_ranger_bot -c prd -- sh scripts/railway-start.sh"
 
 # Control UI serves HTTP 200 at /. No HTTP /health endpoint exists in this codebase.
 healthcheckPath = "/"
