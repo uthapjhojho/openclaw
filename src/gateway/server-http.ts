@@ -584,6 +584,13 @@ export function createGatewayHttpServer(opts: {
         }
       }
 
+      if (requestPath === "/" || requestPath === "/health") {
+        res.statusCode = 200;
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        res.end("<html><body><h1>OpenClaw Gateway</h1><p>Status: Running</p></body></html>");
+        return;
+      }
+
       res.statusCode = 404;
       res.setHeader("Content-Type", "text/plain; charset=utf-8");
       res.end("Not Found");
