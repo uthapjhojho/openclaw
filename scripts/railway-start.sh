@@ -74,6 +74,22 @@ try {
     console.log("[railway-start] gateway.controlUi.dangerouslyDisableDeviceAuth already true");
   }
 
+  // Bootstrap NVIDIA as default model provider when NVIDIA_API_KEY is set.
+  // Idempotent: only writes if the value is not already set to the NVIDIA model.
+  const nvidiaModel = "nvidia/llama-3.1-nemotron-70b-instruct";
+  if (process.env.NVIDIA_API_KEY) {
+    if (!cfg.agents) cfg.agents = {};
+    if (!cfg.agents.defaults) cfg.agents.defaults = {};
+    if (!cfg.agents.defaults.model) cfg.agents.defaults.model = {};
+    if (cfg.agents.defaults.model.primary !== nvidiaModel) {
+      console.log("[railway-start] Setting agents.defaults.model.primary =", nvidiaModel);
+      cfg.agents.defaults.model.primary = nvidiaModel;
+      dirty = true;
+    } else {
+      console.log("[railway-start] agents.defaults.model.primary already set to NVIDIA model");
+    }
+  }
+
   if (dirty) {
     // Write to a temp file in the same directory then rename over the original.
     // rename(2) only needs write permission on the directory, not the file.
