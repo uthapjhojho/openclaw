@@ -20,14 +20,24 @@ if (!stateDir) {
   process.exit(0);
 }
 const configPath = path.join(stateDir, "openclaw.json");
-if (!fs.existsSync(configPath)) {
-  console.log("[railway-start] No config file at", configPath, "— skipping repair");
-  process.exit(0);
+let cfg = {};
+let dirty = false;
+
+if (fs.existsSync(configPath)) {
+  try {
+    const raw = fs.readFileSync(configPath, "utf8");
+    cfg = JSON.parse(raw);
+  } catch (e) {
+    console.log("[railway-start] Failed to parse existing config, starting fresh");
+    cfg = {};
+    dirty = true;
+  }
+} else {
+  console.log("[railway-start] No config file at", configPath, "— creating new one");
+  dirty = true;
 }
+
 try {
-  const raw = fs.readFileSync(configPath, "utf8");
-  const cfg = JSON.parse(raw);
-  let dirty = false;
 
   // Repair gateway.auth.mode if it holds an invalid value.
   const validModes = ["token", "password", "trusted-proxy"];
@@ -36,7 +46,7 @@ try {
     console.log("[railway-start] Removing invalid gateway.auth.mode:", mode);
     delete cfg.gateway.auth.mode;
     dirty = true;
-  } else {
+  } else if (fs.existsSync(configPath)) {
     console.log("[railway-start] Config OK (gateway.auth.mode:", mode || "unset", ")");
   }
 
