@@ -414,7 +414,7 @@ export async function loadOverview(host: SettingsHost) {
 
 export async function loadChannelsTab(host: SettingsHost) {
   await Promise.all([
-    loadChannels(host as unknown as OpenClawApp, true),
+    loadChannels(host as unknown as OpenClawApp, false),
     loadConfigSchema(host as unknown as OpenClawApp),
     loadConfig(host as unknown as OpenClawApp),
   ]);

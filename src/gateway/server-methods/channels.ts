@@ -127,12 +127,14 @@ export const channelsHandlers: GatewayRequestHandlers = {
         cfg,
         accountIds,
       });
-      const accounts: ChannelAccountSnapshot[] = [];
       const resolvedAccounts: Record<string, unknown> = {};
       for (const accountId of accountIds) {
-        const account = plugin.config.resolveAccount(cfg, accountId);
+        resolvedAccounts[accountId] = plugin.config.resolveAccount(cfg, accountId);
+      }
+
+      const buildAccountSnapshot = async (accountId: string): Promise<ChannelAccountSnapshot> => {
+        const account = resolvedAccounts[accountId];
         const enabled = isAccountEnabled(plugin, account);
-        resolvedAccounts[accountId] = account;
         let probeResult: unknown;
         let lastProbeAt: number | null = null;
         if (probe && enabled && plugin.status?.probeAccount) {
@@ -186,8 +188,10 @@ export const channelsHandlers: GatewayRequestHandlers = {
         if (snapshot.lastOutboundAt == null) {
           snapshot.lastOutboundAt = activity.outboundAt;
         }
-        accounts.push(snapshot);
-      }
+        return snapshot;
+      };
+
+      const accounts = await Promise.all(accountIds.map(buildAccountSnapshot));
       const defaultAccount =
         accounts.find((entry) => entry.accountId === defaultAccountId) ?? accounts[0];
       return { accounts, defaultAccountId, defaultAccount, resolvedAccounts };
