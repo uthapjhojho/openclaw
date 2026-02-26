@@ -122,6 +122,22 @@ try {
     console.log("[railway-start] Agent identity already Meutia 🌸");
   }
 
+  // Sync TELEGRAM_BOT_TOKEN env var into channels.telegram.botToken so the env var
+  // always wins over any stale token persisted in openclaw.json on the /data volume.
+  // This prevents 409 Conflict errors caused by leftover tokens from previous bot accounts.
+  const envTelegramToken = process.env.TELEGRAM_BOT_TOKEN?.trim();
+  if (envTelegramToken) {
+    if (!cfg.channels) cfg.channels = {};
+    if (!cfg.channels.telegram) cfg.channels.telegram = {};
+    if (cfg.channels.telegram.botToken !== envTelegramToken) {
+      console.log("[railway-start] Syncing channels.telegram.botToken from TELEGRAM_BOT_TOKEN env var");
+      cfg.channels.telegram.botToken = envTelegramToken;
+      dirty = true;
+    } else {
+      console.log("[railway-start] channels.telegram.botToken already matches TELEGRAM_BOT_TOKEN env var");
+    }
+  }
+
   if (dirty) {
     // Stamp meta.lastTouchedAt so downstream readers can detect stale configs.
     if (!cfg.meta) cfg.meta = {};
