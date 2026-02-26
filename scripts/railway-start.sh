@@ -172,6 +172,13 @@ try {
       cfg.channels.telegram.webhookSecret = webhookSecret;
       dirty = true;
     }
+    if (cfg.channels.telegram.webhookPath !== "/telegram/webhook") {
+      console.log("[railway-start] Setting channels.telegram.webhookPath = /telegram/webhook");
+      cfg.channels.telegram.webhookPath = "/telegram/webhook";
+      dirty = true;
+    } else {
+      console.log("[railway-start] channels.telegram.webhookPath already set");
+    }
   }
 
   if (dirty) {
