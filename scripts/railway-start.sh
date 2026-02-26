@@ -90,6 +90,38 @@ try {
     }
   }
 
+  // Wire Meutia persona: set agents.defaults.workspace to the meutia workspace dir,
+  // and ensure the default agent entry has the Meutia identity (name + emoji).
+  // The workspace files are bundled in meutia-workspace/ inside the openclaw repo
+  // and synced to /data/openclaw/meutia-workspace/ at startup (see shell block below).
+  const meutiaWorkspaceDir = "/data/openclaw/meutia-workspace";
+  if (!cfg.agents) cfg.agents = {};
+  if (!cfg.agents.defaults) cfg.agents.defaults = {};
+  if (cfg.agents.defaults.workspace !== meutiaWorkspaceDir) {
+    console.log("[railway-start] Setting agents.defaults.workspace =", meutiaWorkspaceDir);
+    cfg.agents.defaults.workspace = meutiaWorkspaceDir;
+    dirty = true;
+  } else {
+    console.log("[railway-start] agents.defaults.workspace already set to meutia workspace");
+  }
+
+  // Set Meutia identity on the first agent list entry (or the defaults-level identity).
+  // Using agents.list with a single default agent entry.
+  if (!cfg.agents.list || cfg.agents.list.length === 0) {
+    cfg.agents.list = [{ id: "main", default: true }];
+    dirty = true;
+  }
+  const mainAgent = cfg.agents.list[0];
+  if (!mainAgent.identity) mainAgent.identity = {};
+  if (mainAgent.identity.name !== "Meutia" || mainAgent.identity.emoji !== "🌸") {
+    console.log("[railway-start] Setting agent identity: Meutia 🌸");
+    mainAgent.identity.name = "Meutia";
+    mainAgent.identity.emoji = "🌸";
+    dirty = true;
+  } else {
+    console.log("[railway-start] Agent identity already Meutia 🌸");
+  }
+
   if (dirty) {
     // Stamp meta.lastTouchedAt so downstream readers can detect stale configs.
     if (!cfg.meta) cfg.meta = {};
@@ -108,5 +140,18 @@ try {
   // If it cannot start, run: railway run node openclaw.mjs doctor --fix
 }
 JSEOF
+
+# Sync Meutia persona workspace files to the persistent data volume.
+# Files are bundled in meutia-workspace/ inside the openclaw repo (available in the Docker image).
+# They are copied to /data/openclaw/meutia-workspace/ so openclaw can read them at runtime.
+MEUTIA_SRC="$(dirname "$0")/../meutia-workspace"
+MEUTIA_DST="/data/openclaw/meutia-workspace"
+if [ -d "$MEUTIA_SRC" ]; then
+  mkdir -p "$MEUTIA_DST"
+  cp -f "$MEUTIA_SRC"/*.md "$MEUTIA_DST/"
+  echo "[railway-start] Meutia workspace synced: $MEUTIA_DST"
+else
+  echo "[railway-start] WARNING: meutia-workspace source dir not found at $MEUTIA_SRC — skipping sync"
+fi
 
 exec node openclaw.mjs gateway --allow-unconfigured --bind lan --port "$PORT"

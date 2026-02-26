@@ -72,6 +72,9 @@ apps/ios/*.mobileprovision
 docs/.local/
 IDENTITY.md
 USER.md
+# Exception: Meutia persona workspace bundled into the repo for Railway deployment
+!meutia-workspace/IDENTITY.md
+!meutia-workspace/USER.md
 .tgz
 .idea
 
