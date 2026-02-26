@@ -7,18 +7,36 @@ function isOpenAiCompletionsModel(model: Model<Api>): model is Model<"openai-com
 export function normalizeModelCompat(model: Model<Api>): Model<Api> {
   const baseUrl = model.baseUrl ?? "";
   const isZai = model.provider === "zai" || baseUrl.includes("api.z.ai");
-  if (!isZai || !isOpenAiCompletionsModel(model)) {
+  const isNvidia = model.provider === "nvidia" || baseUrl.includes("integrate.api.nvidia.com");
+
+  if (!isOpenAiCompletionsModel(model)) {
     return model;
   }
 
   const openaiModel = model;
-  const compat = openaiModel.compat ?? undefined;
-  if (compat?.supportsDeveloperRole === false) {
+  let compat = openaiModel.compat ?? undefined;
+  let mutated = false;
+
+  if (isZai && compat?.supportsDeveloperRole !== false) {
+    compat = compat
+      ? { ...compat, supportsDeveloperRole: false }
+      : { supportsDeveloperRole: false };
+    mutated = true;
+  }
+
+  // NVIDIA's API requires user message content as a plain string, not an array.
+  // Sending an array causes: 400 "Input should be a valid string" at (body, messages, N, content).
+  if (isNvidia && compat?.requiresStringUserContent !== true) {
+    compat = compat
+      ? { ...compat, requiresStringUserContent: true }
+      : { requiresStringUserContent: true };
+    mutated = true;
+  }
+
+  if (!mutated) {
     return model;
   }
 
-  openaiModel.compat = compat
-    ? { ...compat, supportsDeveloperRole: false }
-    : { supportsDeveloperRole: false };
+  openaiModel.compat = compat;
   return openaiModel;
 }

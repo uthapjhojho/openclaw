@@ -1,0 +1,67 @@
+diff --git a/dist/providers/openai-completions.js b/dist/providers/openai-completions.js
+index 8c974317b88de3103d664c321e79bd6e6aa0f169..6cd8134240d2de94e802cb8af00ee7e5968b7e4d 100644
+--- a/dist/providers/openai-completions.js
++++ b/dist/providers/openai-completions.js
+@@ -444,6 +444,20 @@ export function convertMessages(model, context, compat) {
+                     content: sanitizeSurrogates(msg.content),
+                 });
+             }
++            else if (compat.requiresStringUserContent) {
++                // Some providers (e.g. NVIDIA) require user content as a plain string,
++                // not an array of content objects. Concatenate all text parts.
++                const textParts = msg.content
++                    .filter((item) => item.type === "text")
++                    .map((item) => sanitizeSurrogates(item.text));
++                const joined = textParts.join("");
++                if (!joined)
++                    continue;
++                params.push({
++                    role: "user",
++                    content: joined,
++                });
++            }
+             else {
+                 const content = msg.content.map((item) => {
+                     if (item.type === "text") {
+@@ -674,6 +688,10 @@ function detectCompat(model) {
+     const useMaxTokens = provider === "mistral" || baseUrl.includes("mistral.ai") || baseUrl.includes("chutes.ai");
+     const isGrok = provider === "xai" || baseUrl.includes("api.x.ai");
+     const isMistral = provider === "mistral" || baseUrl.includes("mistral.ai");
++    // NVIDIA's OpenAI-compatible API requires user message content as a plain string,
++    // not an array of content objects. Sending an array causes a 400 error:
++    // "Input should be a valid string" at (body, messages, N, content).
++    const isNvidia = provider === "nvidia" || baseUrl.includes("integrate.api.nvidia.com");
+     return {
+         supportsStore: !isNonStandard,
+         supportsDeveloperRole: !isNonStandard,
+@@ -688,6 +706,7 @@ function detectCompat(model) {
+         openRouterRouting: {},
+         vercelGatewayRouting: {},
+         supportsStrictMode: true,
++        requiresStringUserContent: isNvidia,
+     };
+ }
+ /**
+@@ -712,6 +731,7 @@ function getCompat(model) {
+         openRouterRouting: model.compat.openRouterRouting ?? {},
+         vercelGatewayRouting: model.compat.vercelGatewayRouting ?? detected.vercelGatewayRouting,
+         supportsStrictMode: model.compat.supportsStrictMode ?? detected.supportsStrictMode,
++        requiresStringUserContent: model.compat.requiresStringUserContent ?? detected.requiresStringUserContent,
+     };
+ }
+ //# sourceMappingURL=openai-completions.js.map
+\ No newline at end of file
+diff --git a/dist/types.d.ts b/dist/types.d.ts
+index 422740345a75f9cb95bf77375e66a14cb583cad3..a6f044dbb5d6be0bf1c1da568651c4f1e8fc74c3 100644
+--- a/dist/types.d.ts
++++ b/dist/types.d.ts
+@@ -226,6 +226,9 @@ export interface OpenAICompletionsCompat {
+     vercelGatewayRouting?: VercelGatewayRouting;
+     /** Whether the provider supports the `strict` field in tool definitions. Default: true. */
+     supportsStrictMode?: boolean;
++    /** Whether the provider requires user message content as a plain string instead of a content array.
++     * Some providers (e.g. NVIDIA) reject array-format user content with a 400 error. Default: auto-detected from URL. */
++    requiresStringUserContent?: boolean;
+ }
+ /** Compatibility settings for OpenAI Responses APIs. */
+ export interface OpenAIResponsesCompat {

@@ -19,6 +19,9 @@ export type ModelCompatConfig = {
   requiresAssistantAfterToolResult?: boolean;
   requiresThinkingAsText?: boolean;
   requiresMistralToolIds?: boolean;
+  /** Whether the provider requires user message content as a plain string instead of a content array.
+   * Some providers (e.g. NVIDIA) reject array-format content with a 400 error. Default: auto-detected from URL. */
+  requiresStringUserContent?: boolean;
 };
 
 export type ModelProviderAuthMode = "api-key" | "aws-sdk" | "oauth" | "token";
