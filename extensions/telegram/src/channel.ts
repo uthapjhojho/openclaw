@@ -406,6 +406,10 @@ export const telegramPlugin: ChannelPlugin<ResolvedTelegramAccount, TelegramProb
         webhookSecret: account.config.webhookSecret,
         webhookPath: account.config.webhookPath,
         webhookHost: account.config.webhookHost,
+        // Always use the gateway router when running inside the gateway process:
+        // the gateway already serves on the public-facing port, so a standalone
+        // webhook listener on a different port would not be reachable externally.
+        useGatewayRouter: Boolean(account.config.webhookUrl),
       });
     },
     logoutAccount: async ({ accountId, cfg }) => {

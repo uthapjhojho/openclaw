@@ -28,6 +28,12 @@ export type MonitorTelegramOpts = {
   webhookHost?: string;
   proxyFetch?: typeof fetch;
   webhookUrl?: string;
+  /**
+   * When true, registers the webhook handler via the gateway plugin HTTP route
+   * system instead of starting a standalone HTTP listener. Use this when
+   * running inside the gateway process so the handler shares the gateway port.
+   */
+  useGatewayRouter?: boolean;
 };
 
 export function createTelegramRunnerOptions(cfg: OpenClawConfig): RunOptions<unknown> {
@@ -164,6 +170,7 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
         fetch: proxyFetch,
         abortSignal: opts.abortSignal,
         publicUrl: opts.webhookUrl,
+        useGatewayRouter: opts.useGatewayRouter,
       });
       return;
     }

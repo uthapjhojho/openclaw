@@ -1,3 +1,4 @@
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { webhookCallback } from "grammy";
 import { createServer } from "node:http";
 import type { OpenClawConfig } from "../config/config.js";
@@ -12,6 +13,7 @@ import {
   startDiagnosticHeartbeat,
   stopDiagnosticHeartbeat,
 } from "../logging/diagnostic.js";
+import { registerPluginHttpRoute } from "../plugins/http-registry.js";
 import { defaultRuntime } from "../runtime.js";
 import { resolveTelegramAllowedUpdates } from "./allowed-updates.js";
 import { withTelegramApiErrorLogging } from "./api-logging.js";
@@ -34,6 +36,13 @@ export async function startTelegramWebhook(opts: {
   abortSignal?: AbortSignal;
   healthPath?: string;
   publicUrl?: string;
+  /**
+   * When true, registers the webhook handler via the gateway plugin HTTP route
+   * system instead of starting a standalone HTTP server. Use this when running
+   * inside the gateway process (e.g. Railway) so the handler is reachable on
+   * the same port as the gateway without requiring a separate listener.
+   */
+  useGatewayRouter?: boolean;
 }) {
   const path = opts.path ?? "/telegram-webhook";
   const healthPath = opts.healthPath ?? "/healthz";
@@ -65,14 +74,11 @@ export async function startTelegramWebhook(opts: {
     startDiagnosticHeartbeat();
   }
 
-  const server = createServer((req, res) => {
-    if (req.url === healthPath) {
-      res.writeHead(200);
-      res.end("ok");
-      return;
-    }
-    if (req.url !== path || req.method !== "POST") {
-      res.writeHead(404);
+  // Shared request handler for the webhook path — used by both the standalone
+  // server mode and the gateway-router mode.
+  const handleWebhookRequest = (req: IncomingMessage, res: ServerResponse) => {
+    if (req.method !== "POST") {
+      res.writeHead(405, { Allow: "POST" });
       res.end();
       return;
     }
@@ -124,6 +130,76 @@ export async function startTelegramWebhook(opts: {
       return;
     }
     guard.dispose();
+  };
+
+  if (opts.useGatewayRouter) {
+    // Gateway-router mode: register the handler with the plugin HTTP route
+    // system so it is served on the same port as the gateway.  This avoids
+    // the need for a separate listener and prevents the Control UI catch-all
+    // from returning 405 for POST requests to the webhook path.
+    const publicUrl = opts.publicUrl;
+    if (!publicUrl) {
+      throw new Error(
+        "Telegram webhook gateway-router mode requires publicUrl " +
+          "(set TELEGRAM_WEBHOOK_URL env var or channels.telegram.webhookUrl).",
+      );
+    }
+
+    const unregister = registerPluginHttpRoute({
+      path,
+      pluginId: "telegram",
+      accountId: opts.accountId,
+      log: (msg) => runtime.log?.(msg),
+      handler: handleWebhookRequest,
+    });
+
+    await withTelegramApiErrorLogging({
+      operation: "setWebhook",
+      runtime,
+      fn: () =>
+        bot.api.setWebhook(publicUrl, {
+          secret_token: secret,
+          allowed_updates: resolveTelegramAllowedUpdates(),
+        }),
+    });
+
+    runtime.log?.(`telegram: webhook registered at ${path} (gateway router, public: ${publicUrl})`);
+
+    const shutdown = () => {
+      unregister();
+      void bot.stop();
+      if (diagnosticsEnabled) {
+        stopDiagnosticHeartbeat();
+      }
+    };
+    if (opts.abortSignal) {
+      opts.abortSignal.addEventListener("abort", shutdown, { once: true });
+    }
+
+    // Keep the promise pending until aborted so the channel manager task stays alive.
+    return new Promise<{ server: null; bot: typeof bot; stop: () => void }>((resolve) => {
+      const done = () => resolve({ server: null, bot, stop: shutdown });
+      if (opts.abortSignal?.aborted) {
+        done();
+      } else {
+        opts.abortSignal?.addEventListener("abort", done, { once: true });
+      }
+    });
+  }
+
+  // Standalone-server mode (default): start a dedicated HTTP listener.
+  const server = createServer((req, res) => {
+    if (req.url === healthPath) {
+      res.writeHead(200);
+      res.end("ok");
+      return;
+    }
+    if (req.url !== path || req.method !== "POST") {
+      res.writeHead(404);
+      res.end();
+      return;
+    }
+    handleWebhookRequest(req, res);
   });
 
   const publicUrl =
