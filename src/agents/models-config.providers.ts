@@ -626,6 +626,15 @@ export function buildNvidiaProvider(): ProviderConfig {
     api: "openai-completions",
     models: [
       {
+        id: "moonshotai/kimi-k2.5",
+        name: "Moonshot Kimi K2.5",
+        reasoning: false,
+        input: ["text", "image"],
+        cost: NVIDIA_DEFAULT_COST,
+        contextWindow: 262144,
+        maxTokens: 32768,
+      },
+      {
         id: NVIDIA_DEFAULT_MODEL_ID,
         name: "NVIDIA Llama 3.3 Nemotron Super 49B v1",
         reasoning: false,
