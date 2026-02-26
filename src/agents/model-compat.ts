@@ -26,10 +26,14 @@ export function normalizeModelCompat(model: Model<Api>): Model<Api> {
 
   // NVIDIA's API requires user message content as a plain string, not an array.
   // Sending an array causes: 400 "Input should be a valid string" at (body, messages, N, content).
-  if (isNvidia && compat?.requiresStringUserContent !== true) {
+  // NVIDIA also does not support max_completion_tokens — it requires max_tokens instead.
+  if (
+    isNvidia &&
+    (compat?.requiresStringUserContent !== true || compat?.maxTokensField !== "max_tokens")
+  ) {
     compat = compat
-      ? { ...compat, requiresStringUserContent: true }
-      : { requiresStringUserContent: true };
+      ? { ...compat, requiresStringUserContent: true, maxTokensField: "max_tokens" }
+      : { requiresStringUserContent: true, maxTokensField: "max_tokens" };
     mutated = true;
   }
 
