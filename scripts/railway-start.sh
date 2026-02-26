@@ -156,6 +156,24 @@ try {
     console.log("[railway-start] channels.telegram.allowFrom already open");
   }
 
+  // Webhook mode: if TELEGRAM_WEBHOOK_URL is set, configure webhook instead of polling
+  const webhookUrl = process.env.TELEGRAM_WEBHOOK_URL;
+  const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
+  if (webhookUrl) {
+    if (cfg.channels.telegram.webhookUrl !== webhookUrl) {
+      console.log("[railway-start] Setting channels.telegram.webhookUrl = " + webhookUrl);
+      cfg.channels.telegram.webhookUrl = webhookUrl;
+      dirty = true;
+    } else {
+      console.log("[railway-start] channels.telegram.webhookUrl already set");
+    }
+    if (webhookSecret && cfg.channels.telegram.webhookSecret !== webhookSecret) {
+      console.log("[railway-start] Setting channels.telegram.webhookSecret");
+      cfg.channels.telegram.webhookSecret = webhookSecret;
+      dirty = true;
+    }
+  }
+
   if (dirty) {
     // Stamp meta.lastTouchedAt so downstream readers can detect stale configs.
     if (!cfg.meta) cfg.meta = {};
