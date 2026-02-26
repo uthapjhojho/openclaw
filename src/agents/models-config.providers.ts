@@ -113,7 +113,7 @@ const QIANFAN_DEFAULT_COST = {
 };
 
 const NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
-const NVIDIA_DEFAULT_MODEL_ID = "llama-3.1-nemotron-70b-instruct";
+const NVIDIA_DEFAULT_MODEL_ID = "llama-3.3-nemotron-super-49b-v1";
 const NVIDIA_DEFAULT_CONTEXT_WINDOW = 131072;
 const NVIDIA_DEFAULT_MAX_TOKENS = 4096;
 const NVIDIA_DEFAULT_COST = {
@@ -627,7 +627,7 @@ export function buildNvidiaProvider(): ProviderConfig {
     models: [
       {
         id: NVIDIA_DEFAULT_MODEL_ID,
-        name: "NVIDIA Llama 3.1 Nemotron 70B Instruct",
+        name: "NVIDIA Llama 3.3 Nemotron Super 49B v1",
         reasoning: false,
         input: ["text"],
         cost: NVIDIA_DEFAULT_COST,

@@ -76,7 +76,7 @@ try {
 
   // Bootstrap NVIDIA as default model provider when NVIDIA_API_KEY is set.
   // Idempotent: only writes if the value is not already set to the NVIDIA model.
-  const nvidiaModel = "nvidia/llama-3.1-nemotron-70b-instruct";
+  const nvidiaModel = "nvidia/llama-3.3-nemotron-super-49b-v1";
   if (process.env.NVIDIA_API_KEY) {
     if (!cfg.agents) cfg.agents = {};
     if (!cfg.agents.defaults) cfg.agents.defaults = {};
