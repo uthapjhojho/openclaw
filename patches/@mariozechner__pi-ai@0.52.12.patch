@@ -1,5 +1,5 @@
 diff --git a/dist/providers/openai-completions.js b/dist/providers/openai-completions.js
-index 8c974317b88de3103d664c321e79bd6e6aa0f169..40a4b58011455fb2e82fd29fe94c64676f94bab1 100644
+index 8c974317b88de3103d664c321e79bd6e6aa0f169..6430e075c2022aef435a63260c51170913343366 100644
 --- a/dist/providers/openai-completions.js
 +++ b/dist/providers/openai-completions.js
 @@ -444,6 +444,20 @@ export function convertMessages(model, context, compat) {
@@ -23,29 +23,28 @@ index 8c974317b88de3103d664c321e79bd6e6aa0f169..40a4b58011455fb2e82fd29fe94c6467
              else {
                  const content = msg.content.map((item) => {
                      if (item.type === "text") {
-@@ -671,7 +685,12 @@ function detectCompat(model) {
-         isZai ||
-         provider === "opencode" ||
-         baseUrl.includes("opencode.ai");
--    const useMaxTokens = provider === "mistral" || baseUrl.includes("mistral.ai") || baseUrl.includes("chutes.ai");
+@@ -674,6 +688,10 @@ function detectCompat(model) {
+     const useMaxTokens = provider === "mistral" || baseUrl.includes("mistral.ai") || baseUrl.includes("chutes.ai");
+     const isGrok = provider === "xai" || baseUrl.includes("api.x.ai");
+     const isMistral = provider === "mistral" || baseUrl.includes("mistral.ai");
 +    // NVIDIA's OpenAI-compatible API requires user message content as a plain string,
 +    // not an array of content objects. Sending an array causes a 400 error:
 +    // "Input should be a valid string" at (body, messages, N, content).
-+    // NVIDIA also rejects max_completion_tokens — it only accepts max_tokens.
 +    const isNvidia = provider === "nvidia" || baseUrl.includes("integrate.api.nvidia.com");
-+    const useMaxTokens = provider === "mistral" || baseUrl.includes("mistral.ai") || baseUrl.includes("chutes.ai") || isNvidia;
-     const isGrok = provider === "xai" || baseUrl.includes("api.x.ai");
-     const isMistral = provider === "mistral" || baseUrl.includes("mistral.ai");
      return {
-@@ -688,6 +707,7 @@ function detectCompat(model) {
+         supportsStore: !isNonStandard,
+         supportsDeveloperRole: !isNonStandard,
+@@ -687,7 +705,8 @@ function detectCompat(model) {
+         thinkingFormat: isZai ? "zai" : "openai",
          openRouterRouting: {},
          vercelGatewayRouting: {},
-         supportsStrictMode: true,
+-        supportsStrictMode: true,
++        supportsStrictMode: !isNvidia,
 +        requiresStringUserContent: isNvidia,
      };
  }
  /**
-@@ -712,6 +732,7 @@ function getCompat(model) {
+@@ -712,6 +731,7 @@ function getCompat(model) {
          openRouterRouting: model.compat.openRouterRouting ?? {},
          vercelGatewayRouting: model.compat.vercelGatewayRouting ?? detected.vercelGatewayRouting,
          supportsStrictMode: model.compat.supportsStrictMode ?? detected.supportsStrictMode,
