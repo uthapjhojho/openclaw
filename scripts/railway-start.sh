@@ -138,6 +138,24 @@ try {
     }
   }
 
+  // Open DMs: allow all senders without pairing requirement
+  if (!cfg.channels) cfg.channels = {};
+  if (!cfg.channels.telegram) cfg.channels.telegram = {};
+  if (cfg.channels.telegram.dmPolicy !== "open") {
+    console.log("[railway-start] Setting channels.telegram.dmPolicy = open");
+    cfg.channels.telegram.dmPolicy = "open";
+    dirty = true;
+  } else {
+    console.log("[railway-start] channels.telegram.dmPolicy already open");
+  }
+  if (!Array.isArray(cfg.channels.telegram.allowFrom) || !cfg.channels.telegram.allowFrom.includes("*")) {
+    console.log("[railway-start] Setting channels.telegram.allowFrom = [*]");
+    cfg.channels.telegram.allowFrom = ["*"];
+    dirty = true;
+  } else {
+    console.log("[railway-start] channels.telegram.allowFrom already open");
+  }
+
   if (dirty) {
     // Stamp meta.lastTouchedAt so downstream readers can detect stale configs.
     if (!cfg.meta) cfg.meta = {};
