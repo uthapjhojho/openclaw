@@ -4,6 +4,15 @@ Docs: https://docs.openclaw.ai
 
 ## 2026.3.1 — ALGOWAY Mission Log
 
+**2026-03-01** — email-watcher fixes: pip/venv, chat ID, noise filter, delivery queue cleanup
+
+- Fixed Python package installation on Railway: PEP 668 "externally managed environment" blocks pip — resolved by creating venv at `/data/openclaw/venv` (persistent disk) and setting `PYTHONPATH` Railway env var so system `python3` finds packages without pip
+- Fixed wrong Telegram chat ID in email-watcher: `8281248569` → `169554638` across `cron/jobs.json`, `skills/email-watcher/SKILL.md`, and MEMORY.md
+- Cleared 9 stale delivery-queue entries (5 with wrong chat ID, 4 with test ID) that were retrying on every container restart
+- Reset cron `consecutiveErrors` counter (5 → 0) after fixing root cause; cron confirmed running `lastStatus: ok`
+- Upgraded email-watcher L2 defense: replaced strict `@algowayss.co` sender allowlist with smart noise filter — skips marketing, newsletters, Teams/calendar/LinkedIn notifications, and self-sent emails using pattern matching + LLM judgment
+- Files: `skills/email-watcher/SKILL.md`, `scripts/railway-start.sh`
+
 **2026-03-01** — ms-graph-email skill, email watcher cron, Meutia identity update
 
 - Built `skills/ms-graph-email/` — Microsoft Graph API OAuth2 email for meutia@algowayss.co, replaces imap-smtp-email
