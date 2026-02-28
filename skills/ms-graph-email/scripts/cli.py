@@ -139,10 +139,22 @@ _NOISE_SENDER_NAMES = [
 _MEUTIA_EMAIL = "meutia@algowayss.co"
 
 
+def _extract_from(email: dict) -> tuple:
+    """Extract (address, name) from Graph API nested from field."""
+    from_field = email.get("from") or {}
+    if isinstance(from_field, dict):
+        email_addr = from_field.get("emailAddress") or {}
+        return (
+            (email_addr.get("address") or "").lower(),
+            (email_addr.get("name") or "").lower(),
+        )
+    # Fallback if already a flat string
+    return (str(from_field).lower(), "")
+
+
 def _is_noise(email: dict) -> bool:
     """Return True if the email matches any noise filter pattern."""
-    from_addr = (email.get("from") or "").lower()
-    from_name = (email.get("fromName") or "").lower()
+    from_addr, from_name = _extract_from(email)
     subject = (email.get("subject") or "").lower()
 
     # Self-sent
@@ -190,9 +202,15 @@ def cmd_check_inbox(args: argparse.Namespace) -> None:
         # Mark as read regardless (prevents infinite re-notification)
         svc.mark_as_read(email_id)
         if not _is_noise(email):
-            real_emails.append(email)
+            from_addr, from_name = _extract_from(email)
+            real_emails.append({
+                "from": f"{from_name} <{from_addr}>" if from_name else from_addr,
+                "subject": email.get("subject") or "(no subject)",
+                "preview": (email.get("bodyPreview") or "")[:100],
+                "receivedAt": email.get("receivedDateTime") or "",
+            })
 
-    print(json.dumps({"real_count": len(real_emails), "emails": real_emails}, default=str, indent=2))
+    print(json.dumps({"real_count": len(real_emails), "emails": real_emails}, indent=2))
 
 
 def cmd_list(args: argparse.Namespace) -> None:
