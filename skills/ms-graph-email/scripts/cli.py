@@ -7,6 +7,7 @@ Prints results as JSON to stdout.
 
 Usage:
     python3 scripts/cli.py list [--folder INBOX] [--top 20] [--unread-only]
+    python3 scripts/cli.py check-inbox [--top 10]
     python3 scripts/cli.py send --to EMAIL --subject TEXT --body TEXT [--html] [--cc EMAIL] [--bcc EMAIL]
     python3 scripts/cli.py search QUERY [--top 20]
     python3 scripts/cli.py get EMAIL_ID
@@ -109,8 +110,90 @@ def _validate_recipients(value: str, field: str) -> str:
 
 
 # =============================================================================
+# NOISE FILTER — deterministic, no LLM judgment required
+# =============================================================================
+
+_NOISE_SENDER_SUBSTRINGS = [
+    "noreply", "no-reply", "donotreply", "do-not-reply",
+    "notifications@", "notification@", "newsletter",
+    "mailer-daemon", "postmaster", "automated",
+    "bounce@", "alerts@", "admin@",
+    "support@microsoft", "teams@", "calendar@",
+    "mail@linkedin", "info@linkedin",
+    "noreply@email.teams.microsoft.com",
+]
+
+_NOISE_SUBJECT_SUBSTRINGS = [
+    "undeliverable", "delivery status notification",
+    "automatic reply", "auto:", "out of office", "ndr:",
+    "newsletter", "subscription", "unsubscribe",
+    "marketing", "digest", "weekly update", "monthly update",
+]
+
+_NOISE_SENDER_NAMES = [
+    "microsoft teams", "microsoft outlook",
+    "linkedin", "mailchimp", "constant contact", "sendgrid",
+    "mailer daemon",
+]
+
+_MEUTIA_EMAIL = "meutia@algowayss.co"
+
+
+def _is_noise(email: dict) -> bool:
+    """Return True if the email matches any noise filter pattern."""
+    from_addr = (email.get("from") or "").lower()
+    from_name = (email.get("fromName") or "").lower()
+    subject = (email.get("subject") or "").lower()
+
+    # Self-sent
+    if _MEUTIA_EMAIL in from_addr:
+        return True
+
+    # Sender address patterns
+    for pattern in _NOISE_SENDER_SUBSTRINGS:
+        if pattern in from_addr:
+            return True
+
+    # Sender display name patterns
+    for pattern in _NOISE_SENDER_NAMES:
+        if pattern in from_name:
+            return True
+
+    # Subject patterns
+    for pattern in _NOISE_SUBJECT_SUBSTRINGS:
+        if pattern in subject:
+            return True
+
+    return False
+
+
+# =============================================================================
 # COMMAND HANDLERS
 # =============================================================================
+
+def cmd_check_inbox(args: argparse.Namespace) -> None:
+    """
+    Fetch unread inbox emails, apply noise filter, mark ALL fetched emails as
+    read (noise + real), and return only the real human emails as JSON.
+
+    Output: {"real_count": N, "emails": [...]}
+    If real_count == 0, no notification needed.
+    """
+    svc = get_email_service()
+    all_unread = svc.list_emails(folder="inbox", top=args.top, unread_only=True)
+
+    real_emails = []
+    for email in all_unread:
+        email_id = email.get("id")
+        if not email_id:
+            continue
+        # Mark as read regardless (prevents infinite re-notification)
+        svc.mark_as_read(email_id)
+        if not _is_noise(email):
+            real_emails.append(email)
+
+    print(json.dumps({"real_count": len(real_emails), "emails": real_emails}, default=str, indent=2))
+
 
 def cmd_list(args: argparse.Namespace) -> None:
     folder = normalize_folder(args.folder)
@@ -204,6 +287,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    # check-inbox
+    p_ci = subparsers.add_parser("check-inbox", help="Fetch unread inbox, filter noise, mark all as read, return real emails only")
+    p_ci.add_argument("--top", type=int, default=10, help="Max unread emails to fetch (default: 10)")
+
     # list
     p_list = subparsers.add_parser("list", help="List emails from a folder")
     p_list.add_argument("--folder", default="inbox", help="Folder name (default: inbox)")
@@ -251,6 +338,7 @@ def build_parser() -> argparse.ArgumentParser:
 # =============================================================================
 
 COMMAND_MAP = {
+    "check-inbox": cmd_check_inbox,
     "list": cmd_list,
     "send": cmd_send,
     "search": cmd_search,
