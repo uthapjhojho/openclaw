@@ -134,3 +134,14 @@ Details: [Gateway protocol](/gateway/protocol), [Pairing](/channels/pairing),
 - Exactly one Gateway controls a single Baileys session per host.
 - Handshake is mandatory; any non‑JSON or non‑connect first frame is a hard close.
 - Events are not replayed; clients must refresh on gaps.
+
+## Skills and automation (ALGOWAY deployment)
+
+Skills are standalone capability modules loaded by agents. The following are active on the Railway-hosted Meutia instance:
+
+| Skill | Description |
+|---|---|
+| `ms-graph-email` | Microsoft Graph API OAuth2 email read/send for meutia@algowayss.co. Replaces the non-functional `imap-smtp-email`. Uses HTTPS port 443 — compatible with Railway hobby plan networking restrictions. |
+| `email-watcher` | 15-minute cron that polls the inbox and notifies Captain via Telegram (`telegram:8281248569`). Includes L1-L3 prompt injection defenses: content isolation, sender allowlist (@algowayss.co), and locked action scope (read + notify only). |
+
+Last updated: 2026-03-01

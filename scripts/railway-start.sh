@@ -213,4 +213,11 @@ else
   echo "[railway-start] WARNING: meutia-workspace source dir not found at $MEUTIA_SRC — skipping sync"
 fi
 
+# Install Python dependencies for managed skills
+echo "Installing skill Python dependencies..."
+find /data/openclaw/skills -name "requirements.txt" -not -path "*/.imap-smtp-email.bak/*" | while read req; do
+  echo "  Installing: $req"
+  pip install -q -r "$req" 2>&1 || echo "  WARNING: pip install failed for $req"
+done
+
 exec node openclaw.mjs gateway --allow-unconfigured --bind lan --port "$PORT"

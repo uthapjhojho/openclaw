@@ -2,6 +2,18 @@
 
 Docs: https://docs.openclaw.ai
 
+## 2026.3.1 — ALGOWAY Mission Log
+
+**2026-03-01** — ms-graph-email skill, email watcher cron, Meutia identity update
+
+- Built `skills/ms-graph-email/` — Microsoft Graph API OAuth2 email for meutia@algowayss.co, replaces imap-smtp-email
+- Added `--folder` name normalization (Sent Items → sentitems, etc.)
+- Registered 15-min email-watcher cron with L1-L3 prompt injection defenses, Telegram notification to Captain
+- Updated Meutia identity files (IDENTITY.md, SOUL.md, BOOTSTRAP.md) — removed AI/bot labeling, now "Meutia from ALGOWAY"
+- Built and installed `cuk_preflight` at `~/.local/bin/cuk_preflight` (5-gate pre-flight automation)
+- Updated `/delegate` skill with planning-as-default, complexity rubric, pre-flight checklist
+- Files: `skills/ms-graph-email/*`, `skills/email-watcher/*`, `meutia-workspace/*.md`
+
 ## 2026.2.15 (Unreleased)
 
 ### Changes
