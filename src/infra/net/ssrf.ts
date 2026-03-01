@@ -290,7 +290,7 @@ export function createPinnedLookup(params: {
   const records = params.addresses.map((address) => ({
     address,
     family: address.includes(":") ? 6 : 4,
-  }));
+  })).sort((a, b) => a.family - b.family);
   let index = 0;
 
   return ((host: string, options?: unknown, callback?: unknown) => {

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const acquireGatewayLock = vi.fn(async () => ({
   release: vi.fn(async () => {}),
@@ -26,8 +26,10 @@ vi.mock("../../infra/restart.js", () => ({
   markGatewaySigusr1RestartHandled: () => markGatewaySigusr1RestartHandled(),
 }));
 
+const restartGatewayProcessWithFreshPidMock = vi.fn(() => ({ mode: "skipped" as string }));
+
 vi.mock("../../infra/process-respawn.js", () => ({
-  restartGatewayProcessWithFreshPid: () => ({ mode: "skipped" }),
+  restartGatewayProcessWithFreshPid: () => restartGatewayProcessWithFreshPidMock(),
 }));
 
 vi.mock("../../process/command-queue.js", () => ({
@@ -51,6 +53,78 @@ function removeNewSignalListeners(
     }
   }
 }
+
+// FIX 2 — exits with code 1 on supervised restart, code 0 on spawned restart
+describe("runGatewayLoop exit codes (fix 2)", () => {
+  afterEach(() => {
+    // Restore the mock to the neutral default used by other test suites in this file.
+    restartGatewayProcessWithFreshPidMock.mockReset();
+    restartGatewayProcessWithFreshPidMock.mockImplementation(() => ({ mode: "skipped" as string }));
+    consumeGatewaySigusr1RestartAuthorization.mockReset();
+    consumeGatewaySigusr1RestartAuthorization.mockImplementation(() => true);
+    acquireGatewayLock.mockReset();
+    acquireGatewayLock.mockImplementation(async () => ({ release: vi.fn(async () => {}) }));
+  });
+
+  async function runLoopWithRespawnMode(
+    mode: "supervised" | "spawned",
+  ): Promise<number | undefined> {
+    restartGatewayProcessWithFreshPidMock.mockReset();
+    restartGatewayProcessWithFreshPidMock.mockReturnValue({ mode, pid: 1234 });
+    consumeGatewaySigusr1RestartAuthorization.mockReset();
+    consumeGatewaySigusr1RestartAuthorization.mockReturnValue(true);
+    acquireGatewayLock.mockReset();
+    acquireGatewayLock.mockResolvedValue({ release: vi.fn(async () => {}) });
+
+    let capturedCode: number | undefined;
+    const exitMock = vi.fn((code: number) => {
+      capturedCode = code;
+    }) as unknown as (code: number) => never;
+
+    // start: first call returns a server; all subsequent calls stall indefinitely
+    // (they'll never be reached because exit is called before the loop iterates)
+    const start = vi
+      .fn()
+      .mockResolvedValueOnce({ close: vi.fn(async () => {}) })
+      .mockImplementation(() => new Promise(() => {})); // hang forever on second call
+
+    const beforeSigusr1 = new Set(
+      process.listeners("SIGUSR1") as Array<(...args: unknown[]) => void>,
+    );
+    const newListeners: Array<(...args: unknown[]) => void> = [];
+
+    const loopPromise = import("./run-loop.js").then(({ runGatewayLoop }) =>
+      runGatewayLoop({ start, runtime: { exit: exitMock } }),
+    );
+
+    try {
+      await vi.waitFor(() => expect(start).toHaveBeenCalledTimes(1));
+      process.emit("SIGUSR1");
+      // Wait until exit is called; then clean up listeners and return
+      await vi.waitFor(() => expect(exitMock).toHaveBeenCalledTimes(1), { timeout: 10_000 });
+      return capturedCode;
+    } finally {
+      // Remove any SIGUSR1 listeners registered by this test's loop
+      for (const listener of process.listeners("SIGUSR1")) {
+        const fn = listener as (...args: unknown[]) => void;
+        if (!beforeSigusr1.has(fn)) process.removeListener("SIGUSR1", fn);
+      }
+      // Let the dangling loopPromise settle quietly (it will hang on start() forever
+      // but vitest's fork pool will clean it up after the test suite finishes)
+      loopPromise.catch(() => {});
+    }
+  }
+
+  it("exits with code 1 when respawn mode is supervised", async () => {
+    const code = await runLoopWithRespawnMode("supervised");
+    expect(code).toBe(1);
+  });
+
+  it("exits with code 0 when respawn mode is spawned (no regression)", async () => {
+    const code = await runLoopWithRespawnMode("spawned");
+    expect(code).toBe(0);
+  });
+});
 
 describe("runGatewayLoop", () => {
   it("restarts after SIGUSR1 even when drain times out, and resets lanes for the new iteration", async () => {
