@@ -2,6 +2,17 @@
 
 Docs: https://docs.openclaw.ai
 
+## 2026.3.2 — ALGOWAY Mission Log
+
+**2026-03-02** — email-watcher silence fix + session store cleanup
+
+- Fixed email-watcher sending chain-of-thought reasoning to Telegram on empty inbox runs — root cause was `delivery.mode: "announce"` forwarding agent text responses, and after removing it, the message tool leaked "no output" confirmations instead
+- Proper fix: restored `announce` mode (disables message tool) + prompt now outputs `HEARTBEAT_OK` on zero-email path — OpenClaw's built-in suppression token, skips delivery entirely (`skipHeartbeatDelivery = true` in `isolated-agent/run.ts`)
+- Cleaned up 96 stale cron run entries from session store (490 KB → 17 KB)
+- Added `session.maintenance` config to Railway `openclaw.json`: `mode: enforce`, `pruneAfterMs: 86400000` (1 day), `maxEntries: 300` — prevents unbounded growth (was on track to hit 10 MB rotation threshold ~March 25)
+- Updated `skills/email-watcher/SKILL.md` with delivery architecture notes and HEARTBEAT_OK suppression mechanism
+- Files: `skills/email-watcher/SKILL.md`, Railway `/data/openclaw/cron/jobs.json`, `/data/openclaw/openclaw.json`
+
 ## 2026.3.1 — ALGOWAY Mission Log
 
 **2026-03-01** — email-watcher fixes: pip/venv, chat ID, noise filter, delivery queue cleanup
