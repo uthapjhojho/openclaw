@@ -4,6 +4,12 @@ Docs: https://docs.openclaw.ai
 
 ## 2026.3.2 — ALGOWAY Mission Log
 
+**2026-03-02** — fix HEARTBEAT_OK forwarded as reminder + tool result text leakage
+
+- Fixed Bug 1: `"Cron: HEARTBEAT_OK"` label from isolated cron jobs was forwarded to Captain as a "Good morning! You have a reminder" Telegram message every ~15 minutes — root cause: `isHeartbeatNoiseEvent` in `heartbeat-events-filter.ts` only matched events starting with `heartbeat_ok` verbatim, missing the `Cron: ` prefix added by `timer.ts executeJobCore`. Fix: strip leading `Cron:` or `Cron (error):` prefix before the ack check.
+- Fixed Bug 2: Open-weight LLM (llama-3.3-70b) sometimes returns tool-result confirmation text ("The function call to send a message to the user has been executed successfully. The message ID is X, and the chat ID is Y.") as its final assistant output instead of HEARTBEAT_OK — this text was forwarded as a real Telegram message. Fix: added `isToolResultLeakage()` guard in `isolated-agent/run.ts` before the `runSubagentAnnounceFlow` call, detecting the characteristic `function call` + `send a message` and `message id` + `chat id` co-occurrence patterns.
+- Files: `src/infra/heartbeat-events-filter.ts`, `src/cron/isolated-agent/run.ts`
+
 **2026-03-02** — email-watcher silence fix + session store cleanup
 
 - Fixed email-watcher sending chain-of-thought reasoning to Telegram on empty inbox runs — root cause was `delivery.mode: "announce"` forwarding agent text responses, and after removing it, the message tool leaked "no output" confirmations instead

@@ -150,6 +150,24 @@ function expectsSubagentFollowup(value: string): boolean {
   return hints.some((hint) => normalized.includes(hint));
 }
 
+/**
+ * Detect LLM tool-result confirmation text that has leaked into agent output.
+ * Some models (especially open-weight instruct models) return text like
+ * "The function call to send a message to the user has been executed
+ * successfully. The message ID is X, and the chat ID is Y." as their final
+ * assistant turn instead of HEARTBEAT_OK or NO_REPLY. This text must NOT be
+ * forwarded to the user — the underlying message was already sent via the
+ * tool, and forwarding the confirmation would result in a duplicate/confusing
+ * meta-message reaching Captain's Telegram.
+ */
+function isToolResultLeakage(text: string): boolean {
+  const lower = text.toLowerCase();
+  return (
+    (lower.includes("function call") && lower.includes("send a message")) ||
+    (lower.includes("message id") && lower.includes("chat id"))
+  );
+}
+
 async function readDescendantSubagentFallbackReply(params: {
   sessionKey: string;
   runStartedAt: number;
@@ -806,6 +824,15 @@ export async function runCronIsolatedAgentTurn(params: {
         return withRunSession({ status: "ok", summary, outputText });
       }
       if (synthesizedText.toUpperCase() === SILENT_REPLY_TOKEN.toUpperCase()) {
+        return withRunSession({ status: "ok", summary, outputText });
+      }
+      // Suppress tool-result confirmation text that open-weight models sometimes
+      // emit as their final response instead of HEARTBEAT_OK or NO_REPLY.
+      // Example: "The function call to send a message to the user has been
+      // executed successfully. The message ID is X, and the chat ID is Y."
+      // The underlying Telegram message was already delivered via the tool — do
+      // NOT re-deliver this meta-confirmation to the user.
+      if (isToolResultLeakage(synthesizedText)) {
         return withRunSession({ status: "ok", summary, outputText });
       }
       try {

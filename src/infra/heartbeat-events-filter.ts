@@ -42,10 +42,14 @@ function isHeartbeatNoiseEvent(evt: string): boolean {
   if (!lower) {
     return false;
   }
+  // Strip a leading 'Cron: ' or 'Cron (error): ' prefix so that a cron job
+  // summary like "Cron: HEARTBEAT_OK" is correctly detected as noise and not
+  // forwarded to the user as a real reminder.
+  const stripped = lower.replace(/^cron(?:\s*\(error\))?:\s+/, "");
   return (
-    isHeartbeatAckEvent(lower) ||
-    lower.includes("heartbeat poll") ||
-    lower.includes("heartbeat wake")
+    isHeartbeatAckEvent(stripped) ||
+    stripped.includes("heartbeat poll") ||
+    stripped.includes("heartbeat wake")
   );
 }
 
