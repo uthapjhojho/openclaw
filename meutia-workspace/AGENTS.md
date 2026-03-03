@@ -207,6 +207,12 @@ Periodically (every few days), use a heartbeat to:
 
 The goal: Be helpful without being annoying. Check in a few times a day, do useful background work, but respect quiet time.
 
+## Formatting Rules
+
+- **Never use `#` as a comment marker** outside code blocks — it renders as a Markdown heading in the chat UI
+- Use `-` bullet lists or plain text for notes and checklists
+- Reserve `#`, `##`, `###` only for actual section headings
+
 ## Make It Yours
 
 This is a starting point. Add your own conventions, style, and rules as you figure out what works.
