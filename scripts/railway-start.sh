@@ -181,6 +181,22 @@ try {
     }
   }
 
+  // Enable OpenClaw hooks (HTTP webhook inbound + AgentOS integration).
+  // Requires OPENCLAW_HOOKS_ENABLED=true + OPENCLAW_HOOKS_TOKEN env vars.
+  if (process.env.OPENCLAW_HOOKS_ENABLED === "true") {
+    if (!cfg.hooks) cfg.hooks = {};
+    cfg.hooks.enabled = true;
+    cfg.hooks.token = process.env.OPENCLAW_HOOKS_TOKEN;
+    cfg.hooks.path = process.env.OPENCLAW_HOOKS_PATH || "/hooks";
+    cfg.hooks.defaultSessionKey = "hook:agentOS";
+    cfg.hooks.allowRequestSessionKey = false;
+    cfg.hooks.allowedSessionKeyPrefixes = ["hook:"];
+    cfg.hooks.allowedAgentIds = ["*"];
+    dirty = true;
+  } else if (fs.existsSync(configPath)) {
+    console.log("[railway-start] Hooks not enabled (OPENCLAW_HOOKS_ENABLED not true)");
+  }
+
   if (dirty) {
     // Stamp meta.lastTouchedAt so downstream readers can detect stale configs.
     if (!cfg.meta) cfg.meta = {};
