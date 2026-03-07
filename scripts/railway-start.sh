@@ -74,19 +74,21 @@ try {
     console.log("[railway-start] gateway.controlUi.dangerouslyDisableDeviceAuth already true");
   }
 
-  // Bootstrap NVIDIA as default model provider when NVIDIA_API_KEY is set.
-  // Idempotent: only writes if the value is not already set to the NVIDIA model.
-  const nvidiaModel = "nvidia/meta/llama-3.3-70b-instruct";
-  if (process.env.NVIDIA_API_KEY) {
+  // Bootstrap ZAI as default model provider when ZAI_API_KEY is set.
+  // Idempotent: only writes if the value is not already set to the ZAI model.
+  const zaiModel = "zai/glm-4.7-flash";
+  // Future-proof stub for vision model — uncomment when ready:
+  // const zaiVisionModel = "zai/glm-4.6v-flash";
+  if (process.env.ZAI_API_KEY) {
     if (!cfg.agents) cfg.agents = {};
     if (!cfg.agents.defaults) cfg.agents.defaults = {};
     if (!cfg.agents.defaults.model) cfg.agents.defaults.model = {};
-    if (cfg.agents.defaults.model.primary !== nvidiaModel) {
-      console.log("[railway-start] Setting agents.defaults.model.primary =", nvidiaModel);
-      cfg.agents.defaults.model.primary = nvidiaModel;
+    if (cfg.agents.defaults.model.primary !== zaiModel) {
+      console.log("[railway-start] Setting agents.defaults.model.primary =", zaiModel);
+      cfg.agents.defaults.model.primary = zaiModel;
       dirty = true;
     } else {
-      console.log("[railway-start] agents.defaults.model.primary already set to NVIDIA model");
+      console.log("[railway-start] agents.defaults.model.primary already set to ZAI model");
     }
   }
 
