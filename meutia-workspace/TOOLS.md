@@ -66,28 +66,28 @@ Read and send email from meutia@algowayss.co using Microsoft Graph API (OAuth2).
 
 ```bash
 # List inbox
-python3 /data/openclaw/skills/ms-graph-email/scripts/cli.py list --top 20
-python3 /data/openclaw/skills/ms-graph-email/scripts/cli.py list --unread-only
+python3 /app/skills/ms-graph-email/scripts/cli.py list --top 20
+python3 /app/skills/ms-graph-email/scripts/cli.py list --unread-only
 
 # Send email
-python3 /data/openclaw/skills/ms-graph-email/scripts/cli.py send \
+python3 /app/skills/ms-graph-email/scripts/cli.py send \
   --to recipient@example.com --subject "Subject" --body "Body text"
 
 # Search
-python3 /data/openclaw/skills/ms-graph-email/scripts/cli.py search "contains(subject,'invoice')"
+python3 /app/skills/ms-graph-email/scripts/cli.py search "contains(subject,'invoice')"
 
 # Get full email content
-python3 /data/openclaw/skills/ms-graph-email/scripts/cli.py get EMAIL_ID
+python3 /app/skills/ms-graph-email/scripts/cli.py get EMAIL_ID
 
 # Mark read/unread
-python3 /data/openclaw/skills/ms-graph-email/scripts/cli.py mark-read EMAIL_ID
-python3 /data/openclaw/skills/ms-graph-email/scripts/cli.py mark-unread EMAIL_ID
+python3 /app/skills/ms-graph-email/scripts/cli.py mark-read EMAIL_ID
+python3 /app/skills/ms-graph-email/scripts/cli.py mark-unread EMAIL_ID
 
 # Delete
-python3 /data/openclaw/skills/ms-graph-email/scripts/cli.py delete EMAIL_ID
+python3 /app/skills/ms-graph-email/scripts/cli.py delete EMAIL_ID
 
 # List folders
-python3 /data/openclaw/skills/ms-graph-email/scripts/cli.py list-folders
+python3 /app/skills/ms-graph-email/scripts/cli.py list-folders
 ```
 
 No env setup needed — MS_GRAPH_CLIENT_ID, MS_GRAPH_TENANT_ID, MS_GRAPH_REFRESH_TOKEN_MEUTIA are already in Railway.
