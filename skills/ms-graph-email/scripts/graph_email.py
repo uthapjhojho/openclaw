@@ -64,7 +64,16 @@ class IPv4HTTPAdapter(HTTPAdapter):
                 af, socktype, proto, canonname, sa = res
                 try:
                     sock = socket.socket(af, socktype, proto)
-                    sock.settimeout(kwargs.get("timeout", TIMEOUT_API_REQUEST))
+                    raw_timeout = kwargs.get("timeout", TIMEOUT_API_REQUEST)
+                    # urllib3 may pass a Timeout object; extract the connect value
+                    try:
+                        connect_timeout = float(raw_timeout)
+                    except (TypeError, ValueError):
+                        try:
+                            connect_timeout = float(raw_timeout.connect_timeout or TIMEOUT_API_REQUEST)
+                        except Exception:
+                            connect_timeout = TIMEOUT_API_REQUEST
+                    sock.settimeout(connect_timeout)
                     sock.connect(sa)
                     return sock
                 except socket.error:
