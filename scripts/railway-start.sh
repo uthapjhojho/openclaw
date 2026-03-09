@@ -76,7 +76,7 @@ try {
 
   // Bootstrap ZAI as default model provider when ZAI_API_KEY is set.
   // Idempotent: only writes if the value is not already set to the ZAI model.
-  const zaiModel = "zai/glm-4.7-flash";
+  const zaiModel = "zai/glm-4.6";
   // Future-proof stub for vision model — uncomment when ready:
   // const zaiVisionModel = "zai/glm-4.6v-flash";
   if (process.env.ZAI_API_KEY) {
