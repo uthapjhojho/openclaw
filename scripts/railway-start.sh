@@ -158,6 +158,18 @@ try {
     console.log("[railway-start] channels.telegram.allowFrom already open");
   }
 
+  // Suppress HEARTBEAT_OK delivery to Telegram — showOk=true causes the literal
+  // "HEARTBEAT_OK" string to be sent to the user whenever there are no active tasks.
+  // Default is already false, but the Control UI can toggle it on — force it off here.
+  if (!cfg.channels.telegram.heartbeat) cfg.channels.telegram.heartbeat = {};
+  if (cfg.channels.telegram.heartbeat.showOk !== false) {
+    console.log("[railway-start] Setting channels.telegram.heartbeat.showOk = false");
+    cfg.channels.telegram.heartbeat.showOk = false;
+    dirty = true;
+  } else {
+    console.log("[railway-start] channels.telegram.heartbeat.showOk already false");
+  }
+
   // Webhook mode: if TELEGRAM_WEBHOOK_URL is set, configure webhook instead of polling
   const webhookUrl = process.env.TELEGRAM_WEBHOOK_URL;
   const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
