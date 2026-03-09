@@ -74,6 +74,19 @@ The `railway-start.sh` pip loop (get-pip.py bootstrap + pip install) is kept as 
 
 ---
 
+## ADR-007: Switch Meutia Primary Model from GLM-4.7-Flash to GLM-4.6
+
+**Date**: 2026-03-09
+**Status**: Accepted
+
+**Context**: Meutia was configured with `zai/glm-4.7-flash` as primary model, but GLM-4.7-Flash is not part of the z.ai coding plan. It has a concurrency limit of 1 and was causing frequent timeouts. Investigation revealed the coding plan supports: GLM-4.7, GLM-4.6, GLM-4.5, and GLM-4.5-Air. Additionally, the coding plan uses a separate API endpoint (`/api/coding/paas/v4`) distinct from the standard endpoint (`/api/paas/v4`).
+
+**Decision**: Switch primary model to `zai/glm-4.6`. Updated both the live config and `railway-start.sh` so the model persists across redeployments. Fallback remains `nvidia/meta/llama-3.3-70b-instruct`.
+
+**Consequences**: Meutia now has concurrency 10 (vs Flash's 1), is billed against the coding plan quota, and timeouts from concurrent requests should no longer occur.
+
+---
+
 ## ADR-006: Johnny Finance Agent with Qwen + Groq Fallback
 
 **Date**: 2026-03-09
