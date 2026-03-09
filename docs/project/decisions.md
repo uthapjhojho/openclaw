@@ -46,6 +46,19 @@ This file tracks significant architectural and design decisions made during Open
 
 ---
 
+## ADR-004: whatsapp-bot StartLimitBurst Hardening
+
+**Date**: 2026-03-08
+**Status**: Accepted
+
+**Context**: whatsapp-bot previously hit 308 restart cycles during a lancedb import crash loop because no StartLimitBurst was configured. lancedb has been replaced by ChromaDB but any future import error could cause the same pattern.
+
+**Decision**: Add `StartLimitIntervalSec=60` + `StartLimitBurst=10` to the `[Unit]` section of `/etc/systemd/system/whatsapp-bot.service` on rumahgadang as a safety net.
+
+**Consequences**: Runaway crash loops are capped at 10 attempts/60s. If the bot hits the limit, manual intervention (`systemctl reset-failed` + restart) is required.
+
+---
+
 ## ADR-003: Python Packages on Railway via PYTHONPATH Venv
 
 **Date**: 2026-03-01
@@ -58,3 +71,29 @@ This file tracks significant architectural and design decisions made during Open
 The `railway-start.sh` pip loop (get-pip.py bootstrap + pip install) is kept as a fallback/future safety net but is effectively a no-op when `PYTHONPATH` is already set.
 
 **Consequences**: Skill Python dependencies (`requests`, etc.) are resolved via PYTHONPATH at zero boot cost. New dependencies require a one-time manual `python3 -m pip install -r requirements.txt --prefix /data/openclaw/venv` inside the Railway container, or a Railway env var update. The venv lives at `/data/openclaw/venv` and must match Railway's Python version (currently 3.11).
+
+---
+
+## ADR-006: Johnny Finance Agent with Qwen + Groq Fallback
+
+**Date**: 2026-03-09
+**Status**: Accepted
+
+**Context**: A new finance agent ("Johnny") is needed to read expense transactions from SharePoint Excel and generate P&L, cash flow, and balance sheet reports. A separate agent identity from Meutia is required to scope the persona and workspace independently.
+
+**Decision**: Add Johnny as a second agent in OpenClaw (`agents.list`). Primary model: `qwen/qwen-plus` (Alibaba DashScope international endpoint). Fallback: `groq/mixtral-8x7b-32768`. Both providers registered under `models.providers` with actual API keys injected at boot. Workspace: `/data/openclaw/johnny-workspace`.
+
+**Consequences**: Johnny runs independently of Meutia with his own session namespace (`agent:johnny:*`). Finance workflow (SharePoint read → report write) is deferred to a follow-up session. Groq Mixtral provides a cost-effective fallback if DashScope is unavailable.
+
+---
+
+## ADR-005: whatsapp-bot telegram-bridge soft dependency (Wants= instead of Requires=)
+
+**Date**: 2026-03-09
+**Status**: Accepted
+
+**Context**: whatsapp-bot had `Requires=telegram-bridge.service` which caused systemd to cascade-stop whatsapp-bot whenever telegram-bridge crashed. This unnecessarily took down WhatsApp functionality even though the bot code is fully defensive against telegram-bridge being unavailable (both job_queue_poller and init_bridge_webhook are wrapped in try/except).
+
+**Decision**: Change `Requires=telegram-bridge.service` to `Wants=telegram-bridge.service`. Keep `Requires=whatsapp-bridge.service` as a hard dependency since the bot cannot function without the WhatsApp bridge. The `After=` ordering line is unchanged so boot order is preserved.
+
+**Consequences**: If telegram-bridge crashes, whatsapp-bot stays up and continues serving WhatsApp. Telegram job processing (job_queue_poller) will stop until the bot is restarted. No automatic poller recovery — requires manual bot restart or a watchdog.
