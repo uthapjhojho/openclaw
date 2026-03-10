@@ -243,6 +243,17 @@ else
   echo "[railway-start] WARNING: meutia-workspace source dir not found at $MEUTIA_SRC — skipping sync"
 fi
 
+# Sync Johnny persona workspace files to the persistent data volume.
+JOHNNY_SRC="$(dirname "$0")/../johnny-workspace"
+JOHNNY_DST="/data/openclaw/johnny-workspace"
+if [ -d "$JOHNNY_SRC" ]; then
+  mkdir -p "$JOHNNY_DST"
+  cp -f "$JOHNNY_SRC"/*.md "$JOHNNY_DST/"
+  echo "[railway-start] Johnny workspace synced: $JOHNNY_DST"
+else
+  echo "[railway-start] WARNING: johnny-workspace source dir not found at $JOHNNY_SRC — skipping sync"
+fi
+
 # Install Python dependencies for managed skills
 echo "Installing skill Python dependencies..."
 # Bootstrap pip if not available (Alpine strips ensurepip)
