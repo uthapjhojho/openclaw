@@ -694,8 +694,14 @@ export async function runCronIsolatedAgentTurn(params: {
   const deliveryBestEffort = resolveCronDeliveryBestEffort(params.job);
 
   // Skip delivery for heartbeat-only responses (HEARTBEAT_OK with no real content).
+  // Use synthesizedText (the actual delivery content) rather than all raw model payloads.
+  // Multi-turn agents produce intermediate payloads (e.g. "I'll check now...") before
+  // emitting HEARTBEAT_OK — checking all payloads causes the .every() check to fail on
+  // those intermediate turns and incorrectly lets HEARTBEAT_OK through to delivery.
   const ackMaxChars = resolveHeartbeatAckMaxChars(agentCfg);
-  const skipHeartbeatDelivery = deliveryRequested && isHeartbeatOnlyResponse(payloads, ackMaxChars);
+  const heartbeatCheckPayloads = synthesizedText ? [{ text: synthesizedText }] : payloads;
+  const skipHeartbeatDelivery =
+    deliveryRequested && isHeartbeatOnlyResponse(heartbeatCheckPayloads, ackMaxChars);
   const skipMessagingToolDelivery =
     deliveryRequested &&
     runResult.didSendViaMessagingTool === true &&
