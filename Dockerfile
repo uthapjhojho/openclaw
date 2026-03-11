@@ -202,10 +202,10 @@ RUN ln -sf /app/openclaw.mjs /usr/local/bin/openclaw \
 
 ENV NODE_ENV=production
 
-# Security hardening: Run as non-root user
-# The node:22-bookworm image includes a 'node' user (uid 1000)
-# This reduces the attack surface by preventing container escape via root privileges
-USER node
+# Note: upstream 2026.3.8 added `USER node` here for security hardening.
+# Removed for Railway deployments: the persistent volume (/data) has root-owned
+# files from previous deployments and cannot be written by the node user.
+# Re-enable once a one-time `chown -R node:node /data/openclaw` is run on the volume.
 
 # Start gateway server with default config.
 # Binds to loopback (127.0.0.1) by default for security.
