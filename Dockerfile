@@ -55,7 +55,7 @@ COPY --from=ext-deps /out/ ./extensions/
 
 # Reduce OOM risk on low-memory hosts during dependency installation.
 # Docker builds on small VMs may otherwise fail with "Killed" (exit 137).
-RUN NODE_OPTIONS=--max-old-space-size=2048 pnpm install --no-frozen-lockfile
+RUN NODE_OPTIONS=--max-old-space-size=2048 pnpm install
 
 COPY . .
 
