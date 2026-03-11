@@ -236,8 +236,8 @@ JSEOF
 MEUTIA_SRC="$(dirname "$0")/../meutia-workspace"
 MEUTIA_DST="/data/openclaw/meutia-workspace"
 if [ -d "$MEUTIA_SRC" ]; then
-  mkdir -p "$MEUTIA_DST"
-  cp -f "$MEUTIA_SRC"/*.md "$MEUTIA_DST/"
+  mkdir -p "$MEUTIA_DST" 2>/dev/null || true
+  cp -n "$MEUTIA_SRC"/*.md "$MEUTIA_DST/" 2>/dev/null || true
   echo "[railway-start] Meutia workspace synced: $MEUTIA_DST"
 else
   echo "[railway-start] WARNING: meutia-workspace source dir not found at $MEUTIA_SRC — skipping sync"
@@ -247,8 +247,8 @@ fi
 JOHNNY_SRC="$(dirname "$0")/../johnny-workspace"
 JOHNNY_DST="/data/openclaw/johnny-workspace"
 if [ -d "$JOHNNY_SRC" ]; then
-  mkdir -p "$JOHNNY_DST"
-  cp -f "$JOHNNY_SRC"/*.md "$JOHNNY_DST/"
+  mkdir -p "$JOHNNY_DST" 2>/dev/null || true
+  cp -n "$JOHNNY_SRC"/*.md "$JOHNNY_DST/" 2>/dev/null || true
   echo "[railway-start] Johnny workspace synced: $JOHNNY_DST"
 else
   echo "[railway-start] WARNING: johnny-workspace source dir not found at $JOHNNY_SRC — skipping sync"
