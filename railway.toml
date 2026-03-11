@@ -3,6 +3,7 @@
 
 [build]
 builder = "DOCKERFILE"
+buildArgs = { OPENCLAW_EXTENSIONS = "msteams" }
 
 [deploy]
 # $PORT is injected by Railway automatically.

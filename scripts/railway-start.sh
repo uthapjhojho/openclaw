@@ -195,6 +195,41 @@ try {
     }
   }
 
+  // Enable Microsoft Teams channel when MSTEAMS_APP_ID env var is set.
+  // Credentials (appId/appPassword/tenantId) are read directly from env vars
+  // by the msteams plugin — no need to embed them in the config file.
+  const msteamsAppId = process.env.MSTEAMS_APP_ID?.trim();
+  if (msteamsAppId) {
+    if (!cfg.channels) cfg.channels = {};
+    if (!cfg.channels.msteams) cfg.channels.msteams = {};
+    if (cfg.channels.msteams.enabled !== true) {
+      console.log("[railway-start] Enabling channels.msteams");
+      cfg.channels.msteams.enabled = true;
+      dirty = true;
+    }
+    // Open DMs so Meutia responds to anyone who messages the bot directly.
+    const msteamsDmPolicy = process.env.MSTEAMS_DM_POLICY || "open";
+    if (cfg.channels.msteams.dmPolicy !== msteamsDmPolicy) {
+      console.log("[railway-start] Setting channels.msteams.dmPolicy =", msteamsDmPolicy);
+      cfg.channels.msteams.dmPolicy = msteamsDmPolicy;
+      dirty = true;
+    }
+    if (!Array.isArray(cfg.channels.msteams.allowFrom) || !cfg.channels.msteams.allowFrom.includes("*")) {
+      console.log("[railway-start] Setting channels.msteams.allowFrom = [*]");
+      cfg.channels.msteams.allowFrom = ["*"];
+      dirty = true;
+    }
+    // Allow group channels (teams/channels) — set groupPolicy to open.
+    const msteamsGroupPolicy = process.env.MSTEAMS_GROUP_POLICY || "open";
+    if (cfg.channels.msteams.groupPolicy !== msteamsGroupPolicy) {
+      console.log("[railway-start] Setting channels.msteams.groupPolicy =", msteamsGroupPolicy);
+      cfg.channels.msteams.groupPolicy = msteamsGroupPolicy;
+      dirty = true;
+    }
+  } else if (fs.existsSync(configPath)) {
+    console.log("[railway-start] MSTEAMS_APP_ID not set, skipping MS Teams config");
+  }
+
   // Enable OpenClaw hooks (HTTP webhook inbound + AgentOS integration).
   // Requires OPENCLAW_HOOKS_ENABLED=true + OPENCLAW_HOOKS_TOKEN env vars.
   if (process.env.OPENCLAW_HOOKS_ENABLED === "true") {
