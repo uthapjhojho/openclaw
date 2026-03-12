@@ -46,6 +46,45 @@ const server = http.createServer((req, res) => {
   }
 });
 
+// Forward WebSocket upgrade requests (needed for OpenClaw gateway dashboard and webchat).
+// Without this handler, Node.js 13+ destroys the socket silently (browser sees code=1006).
+server.on("upgrade", (req, socket, head) => {
+  const targetPort =
+    req.url === "/api/messages" || req.url?.startsWith("/api/messages?")
+      ? MSTEAMS_PORT
+      : GATEWAY_PORT;
+  const opts = {
+    hostname: "127.0.0.1",
+    port: targetPort,
+    path: req.url,
+    method: req.method,
+    headers: { ...req.headers, host: `127.0.0.1:${targetPort}` },
+  };
+  const proxy = http.request(opts);
+  proxy.on("upgrade", (proxyRes, proxySocket, proxyHead) => {
+    const statusLine = `HTTP/1.1 ${proxyRes.statusCode} ${proxyRes.statusMessage}\r\n`;
+    const headers = Object.entries(proxyRes.headers)
+      .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : (v ?? "")}`)
+      .join("\r\n");
+    socket.write(`${statusLine}${headers}\r\n\r\n`);
+    if (proxyHead && proxyHead.length) {
+      proxySocket.unshift(proxyHead);
+    }
+    proxySocket.pipe(socket);
+    socket.pipe(proxySocket);
+    proxySocket.on("error", () => socket.destroy());
+    socket.on("error", () => proxySocket.destroy());
+  });
+  proxy.on("error", (err) => {
+    console.error(`[proxy] WebSocket upstream error (port ${targetPort}):`, err.message);
+    socket.destroy();
+  });
+  if (head && head.length) {
+    proxy.write(head);
+  }
+  proxy.end();
+});
+
 server.listen(PUBLIC_PORT, "0.0.0.0", () => {
   console.log(
     `[proxy] listening on ${PUBLIC_PORT} → /api/messages:${MSTEAMS_PORT} | rest:${GATEWAY_PORT}`,
