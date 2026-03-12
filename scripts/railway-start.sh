@@ -301,4 +301,8 @@ find /data/openclaw/skills -name "requirements.txt" -not -path "*/.imap-smtp-ema
   python3 -m pip install -q -r "$req" 2>&1 || echo "  WARNING: pip install failed for $req"
 done
 
-exec node openclaw.mjs gateway --allow-unconfigured --bind lan --port "$PORT"
+# Start the reverse proxy on Railway's public PORT.
+# It forwards /api/messages → msteams plugin (3978) and everything else → gateway (18789).
+node /app/scripts/railway-proxy.js &
+
+exec node openclaw.mjs gateway --allow-unconfigured --bind lan --port 18789
