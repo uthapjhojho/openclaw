@@ -303,6 +303,6 @@ done
 
 # Start the reverse proxy on Railway's public PORT.
 # It forwards /api/messages → msteams plugin (3978) and everything else → gateway (18789).
-node /app/scripts/railway-proxy.js &
+node /app/scripts/railway-proxy.cjs &
 
 exec node openclaw.mjs gateway --allow-unconfigured --bind lan --port 18789
