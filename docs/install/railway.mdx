@@ -90,6 +90,28 @@ If Telegram DMs are set to pairing, the setup wizard can approve the pairing cod
 5. Copy the **Bot Token** and paste into `/setup`
 6. Invite the bot to your server (OAuth2 URL Generator; scopes: `bot`, `applications.commands`)
 
+## Microsoft Teams on Railway
+
+Railway exposes a single public port (`8080`). The built-in reverse proxy (`scripts/railway-proxy.cjs`) routes traffic automatically:
+
+- `/api/messages` → MS Teams plugin (port 3978)
+- Everything else → OpenClaw gateway (port 18789)
+
+To enable Teams on Railway:
+
+1. Set `OPENCLAW_EXTENSIONS=msteams` in your Railway service variables.
+2. Add your Teams credentials as variables:
+   - `MSTEAMS_APP_ID`
+   - `MSTEAMS_APP_PASSWORD`
+   - `MSTEAMS_TENANT_ID`
+3. In Azure Bot → **Configuration**, set the Messaging Endpoint to:
+   ```
+   https://<your-railway-domain>/api/messages
+   ```
+4. Redeploy. The proxy routes `/api/messages` to the Teams plugin automatically — no extra port or networking config needed.
+
+See [Microsoft Teams channel docs](/channels/msteams) for full setup details.
+
 ## Backups & migration
 
 Download a backup at:
