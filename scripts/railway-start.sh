@@ -74,6 +74,24 @@ try {
     console.log("[railway-start] gateway.controlUi.dangerouslyDisableDeviceAuth already true");
   }
 
+  // Ensure gateway.controlUi.allowedOrigins includes the Railway public HTTPS origin.
+  // RAILWAY_PUBLIC_DOMAIN is set automatically by Railway (e.g. openclaw-production-da81.up.railway.app).
+  // Without this, the gateway's origin check rejects the browser WebSocket and closes with 1008.
+  const railwayDomain = process.env.RAILWAY_PUBLIC_DOMAIN?.trim();
+  if (railwayDomain) {
+    const expectedOrigin = `https://${railwayDomain}`;
+    const existing = cfg.gateway.controlUi.allowedOrigins;
+    if (!Array.isArray(existing) || !existing.includes(expectedOrigin)) {
+      console.log("[railway-start] Setting gateway.controlUi.allowedOrigins =", [expectedOrigin]);
+      cfg.gateway.controlUi.allowedOrigins = [expectedOrigin];
+      dirty = true;
+    } else {
+      console.log("[railway-start] gateway.controlUi.allowedOrigins already includes", expectedOrigin);
+    }
+  } else {
+    console.log("[railway-start] RAILWAY_PUBLIC_DOMAIN not set, skipping allowedOrigins config");
+  }
+
   // Bootstrap ZAI as default model provider when ZAI_API_KEY is set.
   // Idempotent: only writes if the value is not already set to the ZAI model.
   const zaiModel = "zai/glm-4.6";

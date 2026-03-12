@@ -53,12 +53,18 @@ server.on("upgrade", (req, socket, head) => {
     req.url === "/api/messages" || req.url?.startsWith("/api/messages?")
       ? MSTEAMS_PORT
       : GATEWAY_PORT;
+  // Use RAILWAY_PUBLIC_DOMAIN as Host so the gateway sees the real public hostname.
+  // Railway's internal routing may rewrite Host to 127.0.0.1:PORT before it reaches
+  // this proxy — isLocalishHost() would then treat the browser as a loopback client,
+  // causing the wrong auth path and a 1006 close. Fallback to req.headers.host for
+  // non-Railway environments (local dev, etc.).
+  const wsHost = process.env.RAILWAY_PUBLIC_DOMAIN ?? req.headers.host;
   const opts = {
     hostname: "127.0.0.1",
     port: targetPort,
     path: req.url,
     method: req.method,
-    headers: { ...req.headers, host: `127.0.0.1:${targetPort}` },
+    headers: { ...req.headers, host: wsHost },
   };
   const proxy = http.request(opts);
   proxy.on("upgrade", (proxyRes, proxySocket, proxyHead) => {
