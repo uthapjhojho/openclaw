@@ -176,6 +176,19 @@ try {
     console.log("[railway-start] channels.telegram.allowFrom already open");
   }
 
+  // Fix groupPolicy=allowlist with empty allowFrom — the gateway doctor rejects this
+  // combination and exits(1), preventing startup. Reset to "open" so all group messages
+  // are accepted (same policy as allowFrom=[*] above).
+  const groupAllowFrom = cfg.channels.telegram.groupAllowFrom;
+  if (
+    cfg.channels.telegram.groupPolicy === "allowlist" &&
+    (!Array.isArray(groupAllowFrom) || groupAllowFrom.length === 0)
+  ) {
+    console.log("[railway-start] Resetting channels.telegram.groupPolicy to open (allowlist with empty groupAllowFrom would block startup)");
+    cfg.channels.telegram.groupPolicy = "open";
+    dirty = true;
+  }
+
   // Suppress HEARTBEAT_OK delivery to Telegram — showOk=true causes the literal
   // "HEARTBEAT_OK" string to be sent to the user whenever there are no active tasks.
   // Default is already false, but the Control UI can toggle it on — force it off here.
@@ -305,6 +318,82 @@ if [ -d "$JOHNNY_SRC" ]; then
   echo "[railway-start] Johnny workspace synced: $JOHNNY_DST"
 else
   echo "[railway-start] WARNING: johnny-workspace source dir not found at $JOHNNY_SRC — skipping sync"
+fi
+
+# Patch missing workspace templates that may be absent due to stale Docker cache.
+# Some templates (IDENTITY.md, USER.md) may be missing from /app/docs/reference/templates/
+# if the image was built from a cached layer that predates their addition.
+# Since /app is writable on Railway, copy any missing templates from node_modules fallback
+# or recreate them inline so ensureAgentWorkspace does not fail at runtime.
+TEMPLATES_DST="/app/docs/reference/templates"
+mkdir -p "$TEMPLATES_DST" 2>/dev/null || true
+
+if [ ! -f "$TEMPLATES_DST/IDENTITY.md" ]; then
+  echo "[railway-start] IDENTITY.md missing from templates — writing fallback"
+  cat > "$TEMPLATES_DST/IDENTITY.md" << 'IDENTITY_EOF'
+---
+summary: "Agent identity record"
+read_when:
+  - Bootstrapping a workspace manually
+---
+
+# IDENTITY.md - Who Am I?
+
+_Fill this in during your first conversation. Make it yours._
+
+- **Name:**
+  _(pick something you like)_
+- **Creature:**
+  _(AI? robot? familiar? ghost in the machine? something weirder?)_
+- **Vibe:**
+  _(how do you come across? sharp? warm? chaotic? calm?)_
+- **Emoji:**
+  _(your signature — pick one that feels right)_
+- **Avatar:**
+  _(workspace-relative path, http(s) URL, or data URI)_
+
+---
+
+This isn't just metadata. It's the start of figuring out who you are.
+
+Notes:
+
+- Save this file at the workspace root as `IDENTITY.md`.
+- For avatars, use a workspace-relative path like `avatars/openclaw.png`.
+IDENTITY_EOF
+else
+  echo "[railway-start] IDENTITY.md already present"
+fi
+
+if [ ! -f "$TEMPLATES_DST/USER.md" ]; then
+  echo "[railway-start] USER.md missing from templates — writing fallback"
+  cat > "$TEMPLATES_DST/USER.md" << 'USER_EOF'
+---
+summary: "User profile record"
+read_when:
+  - Bootstrapping a workspace manually
+---
+
+# USER.md - About Your Human
+
+_Learn about the person you're helping. Update this as you go._
+
+- **Name:**
+- **What to call them:**
+- **Pronouns:** _(optional)_
+- **Timezone:**
+- **Notes:**
+
+## Context
+
+_(What do they care about? What projects are they working on? What annoys them? What makes them laugh? Build this over time.)_
+
+---
+
+The more you know, the better you can help. But remember — you're learning about a person, not building a dossier. Respect the difference.
+USER_EOF
+else
+  echo "[railway-start] USER.md already present"
 fi
 
 # Install Python dependencies for managed skills
