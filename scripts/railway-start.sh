@@ -412,4 +412,16 @@ done
 # It forwards /api/messages → msteams plugin (3978) and everything else → gateway (18789).
 node /app/scripts/railway-proxy.cjs &
 
-exec node openclaw.mjs gateway --allow-unconfigured --bind lan --port 18789
+# On Railway, SIGUSR1-triggered self-restarts call process.exit(0). Railway treats
+# exit-0 as a clean shutdown and does NOT restart the container, so the gateway dies
+# permanently. Wrap in a restart loop so any exit (clean or crash) relaunches it.
+if [ -n "$RAILWAY_ENVIRONMENT" ]; then
+  echo "[railway-start] Railway detected — gateway will auto-restart on exit"
+  while true; do
+    node openclaw.mjs gateway --allow-unconfigured --bind lan --port 18789 && exit_code=$? || exit_code=$?
+    echo "[railway-start] Gateway exited ($exit_code), restarting in 3s..."
+    sleep 3
+  done
+else
+  exec node openclaw.mjs gateway --allow-unconfigured --bind lan --port 18789
+fi
