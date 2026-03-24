@@ -64,16 +64,6 @@ try {
     console.log("[railway-start] gateway.controlUi.allowInsecureAuth already true");
   }
 
-  // Ensure gateway.controlUi.dangerouslyDisableDeviceAuth is true to disable
-  // device authentication on the Control UI for Railway deployments.
-  if (cfg.gateway.controlUi.dangerouslyDisableDeviceAuth !== true) {
-    console.log("[railway-start] Setting gateway.controlUi.dangerouslyDisableDeviceAuth = true");
-    cfg.gateway.controlUi.dangerouslyDisableDeviceAuth = true;
-    dirty = true;
-  } else {
-    console.log("[railway-start] gateway.controlUi.dangerouslyDisableDeviceAuth already true");
-  }
-
   // Ensure gateway.controlUi.allowedOrigins includes the Railway public HTTPS origin.
   // RAILWAY_PUBLIC_DOMAIN is set automatically by Railway (e.g. openclaw-production-da81.up.railway.app).
   // Without this, the gateway's origin check rejects the browser WebSocket and closes with 1008.
