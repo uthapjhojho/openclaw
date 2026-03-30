@@ -97,8 +97,11 @@ sequenceDiagram
   for subsequent connects.
 - **Local** connects (loopback or the gateway host’s own tailnet address) can be
   auto‑approved to keep same‑host UX smooth.
-- **Non‑local** connects must sign the `connect.challenge` nonce and require
-  explicit approval.
+- All connects must sign the `connect.challenge` nonce.
+- Signature payload `v3` also binds `platform` + `deviceFamily`; the gateway
+  pins paired metadata on reconnect and requires repair pairing for metadata
+  changes.
+- **Non‑local** connects still require explicit approval.
 - Gateway auth (`gateway.auth.*`) still applies to **all** connections, local or
   remote.
 
@@ -139,9 +142,9 @@ Details: [Gateway protocol](/gateway/protocol), [Pairing](/channels/pairing),
 
 Skills are standalone capability modules loaded by agents. The following are active on the Railway-hosted Meutia instance:
 
-| Skill | Description |
-|---|---|
-| `ms-graph-email` | Microsoft Graph API OAuth2 email read/send for meutia@algowayss.co. Replaces the non-functional `imap-smtp-email`. Uses HTTPS port 443 — compatible with Railway hobby plan networking restrictions. |
-| `email-watcher` | 15-minute cron that polls the inbox and notifies Captain via Telegram (`telegram:8281248569`). Includes L1-L3 prompt injection defenses: content isolation, sender allowlist (@algowayss.co), and locked action scope (read + notify only). |
+| Skill            | Description                                                                                                                                                                                                                                 |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ms-graph-email` | Microsoft Graph API OAuth2 email read/send for meutia@algowayss.co. Replaces the non-functional `imap-smtp-email`. Uses HTTPS port 443 — compatible with Railway hobby plan networking restrictions.                                        |
+| `email-watcher`  | 15-minute cron that polls the inbox and notifies Captain via Telegram (`telegram:8281248569`). Includes L1-L3 prompt injection defenses: content isolation, sender allowlist (@algowayss.co), and locked action scope (read + notify only). |
 
 Last updated: 2026-03-01

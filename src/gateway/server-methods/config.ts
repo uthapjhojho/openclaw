@@ -1,9 +1,7 @@
-import type { OpenClawConfig } from "../../config/types.openclaw.js";
-import type { GatewayRequestHandlers, RespondFn } from "./types.js";
 import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../../agents/agent-scope.js";
 import { listChannelPlugins } from "../../channels/plugins/index.js";
 import {
-  CONFIG_PATH,
+  createConfigIO,
   loadConfig,
   parseConfigJson5,
   readConfigFileSnapshot,
@@ -19,8 +17,13 @@ import {
   redactConfigSnapshot,
   restoreRedactedValues,
 } from "../../config/redact-snapshot.js";
-import { buildConfigSchema, type ConfigSchemaResponse } from "../../config/schema.js";
+import {
+  buildConfigSchema,
+  lookupConfigSchema,
+  type ConfigSchemaResponse,
+} from "../../config/schema.js";
 import { extractDeliveryInfo } from "../../config/sessions.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import {
   formatDoctorNonInteractiveHint,
   type RestartSentinelPayload,
@@ -28,6 +31,12 @@ import {
 } from "../../infra/restart-sentinel.js";
 import { scheduleGatewaySigusr1Restart } from "../../infra/restart.js";
 import { loadOpenClawPlugins } from "../../plugins/loader.js";
+import { diffConfigPaths } from "../config-reload.js";
+import {
+  formatControlPlaneActor,
+  resolveControlPlaneActor,
+  summarizeChangedPaths,
+} from "../control-plane-audit.js";
 import {
   ErrorCodes,
   errorShape,
@@ -35,18 +44,15 @@ import {
   validateConfigApplyParams,
   validateConfigGetParams,
   validateConfigPatchParams,
+  validateConfigSchemaLookupParams,
+  validateConfigSchemaLookupResult,
   validateConfigSchemaParams,
   validateConfigSetParams,
 } from "../protocol/index.js";
-
-function resolveBaseHash(params: unknown): string | null {
-  const raw = (params as { baseHash?: unknown })?.baseHash;
-  if (typeof raw !== "string") {
-    return null;
-  }
-  const trimmed = raw.trim();
-  return trimmed ? trimmed : null;
-}
+import { resolveBaseHashParam } from "./base-hash.js";
+import { parseRestartRequestParams } from "./restart-request.js";
+import type { GatewayRequestHandlers, RespondFn } from "./types.js";
+import { assertValidParams } from "./validation.js";
 
 function requireConfigBaseHash(
   params: unknown,
@@ -68,7 +74,7 @@ function requireConfigBaseHash(
     );
     return false;
   }
-  const baseHash = resolveBaseHash(params);
+  const baseHash = resolveBaseHashParam(params);
   if (!baseHash) {
     respond(
       false,
@@ -112,6 +118,14 @@ function parseRawConfigOrRespond(
     return null;
   }
   return rawValue;
+}
+
+function sanitizeLookupPathForLog(path: string): string {
+  const sanitized = Array.from(path, (char) => {
+    const code = char.charCodeAt(0);
+    return code < 0x20 || code === 0x7f ? "?" : char;
+  }).join("");
+  return sanitized.length > 120 ? `${sanitized.slice(0, 117)}...` : sanitized;
 }
 
 function parseValidateConfigFromRawOrRespond(
@@ -160,19 +174,7 @@ function resolveConfigRestartRequest(params: unknown): {
   deliveryContext: ReturnType<typeof extractDeliveryInfo>["deliveryContext"];
   threadId: ReturnType<typeof extractDeliveryInfo>["threadId"];
 } {
-  const sessionKey =
-    typeof (params as { sessionKey?: unknown }).sessionKey === "string"
-      ? (params as { sessionKey?: string }).sessionKey?.trim() || undefined
-      : undefined;
-  const note =
-    typeof (params as { note?: unknown }).note === "string"
-      ? (params as { note?: string }).note?.trim() || undefined
-      : undefined;
-  const restartDelayMsRaw = (params as { restartDelayMs?: unknown }).restartDelayMs;
-  const restartDelayMs =
-    typeof restartDelayMsRaw === "number" && Number.isFinite(restartDelayMsRaw)
-      ? Math.max(0, Math.floor(restartDelayMsRaw))
-      : undefined;
+  const { sessionKey, note, restartDelayMs } = parseRestartRequestParams(params);
 
   // Extract deliveryContext + threadId for routing after restart
   // Supports both :thread: (most channels) and :topic: (Telegram)
@@ -195,6 +197,7 @@ function buildConfigRestartSentinelPayload(params: {
   threadId: ReturnType<typeof extractDeliveryInfo>["threadId"];
   note: string | undefined;
 }): RestartSentinelPayload {
+  const configPath = createConfigIO().configPath;
   return {
     kind: params.kind,
     status: "ok",
@@ -206,7 +209,7 @@ function buildConfigRestartSentinelPayload(params: {
     doctorHint: formatDoctorNonInteractiveHint(),
     stats: {
       mode: params.mode,
-      root: CONFIG_PATH,
+      root: configPath,
     },
   };
 }
@@ -258,15 +261,7 @@ function loadSchemaWithPlugins(): ConfigSchemaResponse {
 
 export const configHandlers: GatewayRequestHandlers = {
   "config.get": async ({ params, respond }) => {
-    if (!validateConfigGetParams(params)) {
-      respond(
-        false,
-        undefined,
-        errorShape(
-          ErrorCodes.INVALID_REQUEST,
-          `invalid config.get params: ${formatValidationErrors(validateConfigGetParams.errors)}`,
-        ),
-      );
+    if (!assertValidParams(params, validateConfigGetParams, "config.get", respond)) {
       return;
     }
     const snapshot = await readConfigFileSnapshot();
@@ -274,29 +269,46 @@ export const configHandlers: GatewayRequestHandlers = {
     respond(true, redactConfigSnapshot(snapshot, schema.uiHints), undefined);
   },
   "config.schema": ({ params, respond }) => {
-    if (!validateConfigSchemaParams(params)) {
-      respond(
-        false,
-        undefined,
-        errorShape(
-          ErrorCodes.INVALID_REQUEST,
-          `invalid config.schema params: ${formatValidationErrors(validateConfigSchemaParams.errors)}`,
-        ),
-      );
+    if (!assertValidParams(params, validateConfigSchemaParams, "config.schema", respond)) {
       return;
     }
     respond(true, loadSchemaWithPlugins(), undefined);
   },
-  "config.set": async ({ params, respond }) => {
-    if (!validateConfigSetParams(params)) {
+  "config.schema.lookup": ({ params, respond, context }) => {
+    if (
+      !assertValidParams(params, validateConfigSchemaLookupParams, "config.schema.lookup", respond)
+    ) {
+      return;
+    }
+    const path = (params as { path: string }).path;
+    const schema = loadSchemaWithPlugins();
+    const result = lookupConfigSchema(schema, path);
+    if (!result) {
       respond(
         false,
         undefined,
-        errorShape(
-          ErrorCodes.INVALID_REQUEST,
-          `invalid config.set params: ${formatValidationErrors(validateConfigSetParams.errors)}`,
-        ),
+        errorShape(ErrorCodes.INVALID_REQUEST, "config schema path not found"),
       );
+      return;
+    }
+    if (!validateConfigSchemaLookupResult(result)) {
+      const errors = validateConfigSchemaLookupResult.errors ?? [];
+      context.logGateway.warn(
+        `config.schema.lookup produced invalid payload for ${sanitizeLookupPathForLog(path)}: ${formatValidationErrors(errors)}`,
+      );
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.UNAVAILABLE, "config.schema.lookup returned invalid payload", {
+          details: { errors },
+        }),
+      );
+      return;
+    }
+    respond(true, result, undefined);
+  },
+  "config.set": async ({ params, respond }) => {
+    if (!assertValidParams(params, validateConfigSetParams, "config.set", respond)) {
       return;
     }
     const { snapshot, writeOptions } = await readConfigFileSnapshotForWrite();
@@ -312,22 +324,14 @@ export const configHandlers: GatewayRequestHandlers = {
       true,
       {
         ok: true,
-        path: CONFIG_PATH,
+        path: createConfigIO().configPath,
         config: redactConfigObject(parsed.config, parsed.schema.uiHints),
       },
       undefined,
     );
   },
-  "config.patch": async ({ params, respond }) => {
-    if (!validateConfigPatchParams(params)) {
-      respond(
-        false,
-        undefined,
-        errorShape(
-          ErrorCodes.INVALID_REQUEST,
-          `invalid config.patch params: ${formatValidationErrors(validateConfigPatchParams.errors)}`,
-        ),
-      );
+  "config.patch": async ({ params, respond, client, context }) => {
+    if (!assertValidParams(params, validateConfigPatchParams, "config.patch", respond)) {
       return;
     }
     const { snapshot, writeOptions } = await readConfigFileSnapshotForWrite();
@@ -400,6 +404,11 @@ export const configHandlers: GatewayRequestHandlers = {
       );
       return;
     }
+    const changedPaths = diffConfigPaths(snapshot.config, validated.config);
+    const actor = resolveControlPlaneActor(client);
+    context?.logGateway?.info(
+      `config.patch write ${formatControlPlaneActor(actor)} changedPaths=${summarizeChangedPaths(changedPaths)} restartReason=config.patch`,
+    );
     await writeConfigFile(validated.config, writeOptions);
 
     const { sessionKey, note, restartDelayMs, deliveryContext, threadId } =
@@ -416,12 +425,23 @@ export const configHandlers: GatewayRequestHandlers = {
     const restart = scheduleGatewaySigusr1Restart({
       delayMs: restartDelayMs,
       reason: "config.patch",
+      audit: {
+        actor: actor.actor,
+        deviceId: actor.deviceId,
+        clientIp: actor.clientIp,
+        changedPaths,
+      },
     });
+    if (restart.coalesced) {
+      context?.logGateway?.warn(
+        `config.patch restart coalesced ${formatControlPlaneActor(actor)} delayMs=${restart.delayMs}`,
+      );
+    }
     respond(
       true,
       {
         ok: true,
-        path: CONFIG_PATH,
+        path: createConfigIO().configPath,
         config: redactConfigObject(validated.config, schemaPatch.uiHints),
         restart,
         sentinel: {
@@ -432,16 +452,8 @@ export const configHandlers: GatewayRequestHandlers = {
       undefined,
     );
   },
-  "config.apply": async ({ params, respond }) => {
-    if (!validateConfigApplyParams(params)) {
-      respond(
-        false,
-        undefined,
-        errorShape(
-          ErrorCodes.INVALID_REQUEST,
-          `invalid config.apply params: ${formatValidationErrors(validateConfigApplyParams.errors)}`,
-        ),
-      );
+  "config.apply": async ({ params, respond, client, context }) => {
+    if (!assertValidParams(params, validateConfigApplyParams, "config.apply", respond)) {
       return;
     }
     const { snapshot, writeOptions } = await readConfigFileSnapshotForWrite();
@@ -452,6 +464,11 @@ export const configHandlers: GatewayRequestHandlers = {
     if (!parsed) {
       return;
     }
+    const changedPaths = diffConfigPaths(snapshot.config, parsed.config);
+    const actor = resolveControlPlaneActor(client);
+    context?.logGateway?.info(
+      `config.apply write ${formatControlPlaneActor(actor)} changedPaths=${summarizeChangedPaths(changedPaths)} restartReason=config.apply`,
+    );
     await writeConfigFile(parsed.config, writeOptions);
 
     const { sessionKey, note, restartDelayMs, deliveryContext, threadId } =
@@ -468,12 +485,23 @@ export const configHandlers: GatewayRequestHandlers = {
     const restart = scheduleGatewaySigusr1Restart({
       delayMs: restartDelayMs,
       reason: "config.apply",
+      audit: {
+        actor: actor.actor,
+        deviceId: actor.deviceId,
+        clientIp: actor.clientIp,
+        changedPaths,
+      },
     });
+    if (restart.coalesced) {
+      context?.logGateway?.warn(
+        `config.apply restart coalesced ${formatControlPlaneActor(actor)} delayMs=${restart.delayMs}`,
+      );
+    }
     respond(
       true,
       {
         ok: true,
-        path: CONFIG_PATH,
+        path: createConfigIO().configPath,
         config: redactConfigObject(parsed.config, parsed.schema.uiHints),
         restart,
         sentinel: {

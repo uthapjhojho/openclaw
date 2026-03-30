@@ -1,18 +1,18 @@
 import type { MessageEvent, StickerEventMessage, EventSource, PostbackEvent } from "@line/bot-sdk";
-import type { OpenClawConfig } from "../config/config.js";
-import type { ResolvedLineAccount } from "./types.js";
-import { formatInboundEnvelope, resolveEnvelopeFormatOptions } from "../auto-reply/envelope.js";
+import { formatInboundEnvelope } from "../auto-reply/envelope.js";
+import { type HistoryEntry } from "../auto-reply/reply/history.js";
 import { finalizeInboundContext } from "../auto-reply/reply/inbound-context.js";
 import { formatLocationText, toLocationContext } from "../channels/location.js";
-import {
-  readSessionUpdatedAt,
-  recordSessionMetaFromInbound,
-  resolveStorePath,
-  updateLastRoute,
-} from "../config/sessions.js";
+import { resolveInboundSessionEnvelopeContext } from "../channels/session-envelope.js";
+import { recordInboundSession } from "../channels/session.js";
+import type { OpenClawConfig } from "../config/config.js";
 import { logVerbose, shouldLogVerbose } from "../globals.js";
 import { recordChannelActivity } from "../infra/channel-activity.js";
 import { resolveAgentRoute } from "../routing/resolve-route.js";
+import { resolvePinnedMainDmOwnerFromAllowlist } from "../security/dm-policy-shared.js";
+import { normalizeAllowFrom } from "./bot-access.js";
+import { resolveLineGroupConfigEntry, resolveLineGroupHistoryKey } from "./group-keys.js";
+import type { ResolvedLineAccount, LineGroupConfig } from "./types.js";
 
 interface MediaRef {
   path: string;
@@ -24,14 +24,19 @@ interface BuildLineMessageContextParams {
   allMedia: MediaRef[];
   cfg: OpenClawConfig;
   account: ResolvedLineAccount;
+  commandAuthorized: boolean;
+  groupHistories?: Map<string, HistoryEntry[]>;
+  historyLimit?: number;
 }
 
-function getSourceInfo(source: EventSource): {
+export type LineSourceInfo = {
   userId?: string;
   groupId?: string;
   roomId?: string;
   isGroup: boolean;
-} {
+};
+
+export function getLineSourceInfo(source: EventSource): LineSourceInfo {
   const userId =
     source.type === "user"
       ? source.userId
@@ -48,11 +53,12 @@ function getSourceInfo(source: EventSource): {
 }
 
 function buildPeerId(source: EventSource): string {
-  if (source.type === "group" && source.groupId) {
-    return `group:${source.groupId}`;
-  }
-  if (source.type === "room" && source.roomId) {
-    return `room:${source.roomId}`;
+  const groupKey = resolveLineGroupHistoryKey({
+    groupId: source.type === "group" ? source.groupId : undefined,
+    roomId: source.type === "room" ? source.roomId : undefined,
+  });
+  if (groupKey) {
+    return groupKey;
   }
   if (source.type === "user" && source.userId) {
     return source.userId;
@@ -78,7 +84,7 @@ function resolveLineInboundRoute(params: {
     direction: "inbound",
   });
 
-  const { userId, groupId, roomId, isGroup } = getSourceInfo(params.source);
+  const { userId, groupId, roomId, isGroup } = getLineSourceInfo(params.source);
   const peerId = buildPeerId(params.source);
   const route = resolveAgentRoute({
     cfg: params.cfg,
@@ -170,7 +176,7 @@ function extractMediaPlaceholder(message: MessageEvent["message"]): string {
 }
 
 type LineRouteInfo = ReturnType<typeof resolveAgentRoute>;
-type LineSourceInfo = ReturnType<typeof getSourceInfo> & { peerId: string };
+type LineSourceInfoWithPeerId = LineSourceInfo & { peerId: string };
 
 function resolveLineConversationLabel(params: {
   isGroup: boolean;
@@ -206,15 +212,27 @@ function resolveLineAddresses(params: {
   return { fromAddress, toAddress, originatingTo };
 }
 
+function resolveLineGroupSystemPrompt(
+  groups: Record<string, LineGroupConfig | undefined> | undefined,
+  source: LineSourceInfoWithPeerId,
+): string | undefined {
+  const entry = resolveLineGroupConfigEntry(groups, {
+    groupId: source.groupId,
+    roomId: source.roomId,
+  });
+  return entry?.systemPrompt?.trim() || undefined;
+}
+
 async function finalizeLineInboundContext(params: {
   cfg: OpenClawConfig;
   account: ResolvedLineAccount;
   event: MessageEvent | PostbackEvent;
   route: LineRouteInfo;
-  source: LineSourceInfo;
+  source: LineSourceInfoWithPeerId;
   rawBody: string;
   timestamp: number;
   messageSid: string;
+  commandAuthorized: boolean;
   media: {
     firstPath: string | undefined;
     firstContentType?: string;
@@ -223,6 +241,7 @@ async function finalizeLineInboundContext(params: {
   };
   locationContext?: ReturnType<typeof toLocationContext>;
   verboseLog: { kind: "inbound" | "postback"; mediaCount?: number };
+  inboundHistory?: Pick<HistoryEntry, "sender" | "body" | "timestamp">[];
 }) {
   const { fromAddress, toAddress, originatingTo } = resolveLineAddresses({
     isGroup: params.source.isGroup,
@@ -241,12 +260,9 @@ async function finalizeLineInboundContext(params: {
     senderLabel,
   });
 
-  const storePath = resolveStorePath(params.cfg.session?.store, {
+  const { storePath, envelopeOptions, previousTimestamp } = resolveInboundSessionEnvelopeContext({
+    cfg: params.cfg,
     agentId: params.route.agentId,
-  });
-  const envelopeOptions = resolveEnvelopeFormatOptions(params.cfg);
-  const previousTimestamp = readSessionUpdatedAt({
-    storePath,
     sessionKey: params.route.sessionKey,
   });
 
@@ -289,30 +305,50 @@ async function finalizeLineInboundContext(params: {
     MediaUrls: params.media.paths,
     MediaTypes: params.media.types,
     ...params.locationContext,
+    CommandAuthorized: params.commandAuthorized,
     OriginatingChannel: "line" as const,
     OriginatingTo: originatingTo,
+    GroupSystemPrompt: params.source.isGroup
+      ? resolveLineGroupSystemPrompt(params.account.config.groups, params.source)
+      : undefined,
+    InboundHistory: params.inboundHistory,
   });
 
-  void recordSessionMetaFromInbound({
+  const pinnedMainDmOwner = !params.source.isGroup
+    ? resolvePinnedMainDmOwnerFromAllowlist({
+        dmScope: params.cfg.session?.dmScope,
+        allowFrom: params.account.config.allowFrom,
+        normalizeEntry: (entry) => normalizeAllowFrom([entry]).entries[0],
+      })
+    : null;
+  await recordInboundSession({
     storePath,
     sessionKey: ctxPayload.SessionKey ?? params.route.sessionKey,
     ctx: ctxPayload,
-  }).catch((err) => {
-    logVerbose(`line: failed updating session meta: ${String(err)}`);
+    updateLastRoute: !params.source.isGroup
+      ? {
+          sessionKey: params.route.mainSessionKey,
+          channel: "line",
+          to: params.source.userId ?? params.source.peerId,
+          accountId: params.route.accountId,
+          mainDmOwnerPin:
+            pinnedMainDmOwner && params.source.userId
+              ? {
+                  ownerRecipient: pinnedMainDmOwner,
+                  senderRecipient: params.source.userId,
+                  onSkip: ({ ownerRecipient, senderRecipient }) => {
+                    logVerbose(
+                      `line: skip main-session last route for ${senderRecipient} (pinned owner ${ownerRecipient})`,
+                    );
+                  },
+                }
+              : undefined,
+        }
+      : undefined,
+    onRecordError: (err) => {
+      logVerbose(`line: failed updating session meta: ${String(err)}`);
+    },
   });
-
-  if (!params.source.isGroup) {
-    await updateLastRoute({
-      storePath,
-      sessionKey: params.route.mainSessionKey,
-      deliveryContext: {
-        channel: "line",
-        to: params.source.userId ?? params.source.peerId,
-        accountId: params.route.accountId,
-      },
-      ctx: ctxPayload,
-    });
-  }
 
   if (shouldLogVerbose()) {
     const preview = body.slice(0, 200).replace(/\n/g, "\\n");
@@ -330,7 +366,7 @@ async function finalizeLineInboundContext(params: {
 }
 
 export async function buildLineMessageContext(params: BuildLineMessageContextParams) {
-  const { event, allMedia, cfg, account } = params;
+  const { event, allMedia, cfg, account, commandAuthorized, groupHistories, historyLimit } = params;
 
   const source = event.source;
   const { userId, groupId, roomId, isGroup, peerId, route } = resolveLineInboundRoute({
@@ -367,6 +403,19 @@ export async function buildLineMessageContext(params: BuildLineMessageContextPar
     });
   }
 
+  // Build pending history for group chats: unmentioned messages accumulated in
+  // groupHistories are passed as InboundHistory so the agent has context about
+  // the conversation that preceded the mention.
+  const historyKey = isGroup ? peerId : undefined;
+  const inboundHistory =
+    historyKey && groupHistories && (historyLimit ?? 0) > 0
+      ? (groupHistories.get(historyKey) ?? []).map((entry) => ({
+          sender: entry.sender,
+          body: entry.body,
+          timestamp: entry.timestamp,
+        }))
+      : undefined;
+
   const { ctxPayload } = await finalizeLineInboundContext({
     cfg,
     account,
@@ -376,6 +425,7 @@ export async function buildLineMessageContext(params: BuildLineMessageContextPar
     rawBody,
     timestamp,
     messageSid: messageId,
+    commandAuthorized,
     media: {
       firstPath: allMedia[0]?.path,
       firstContentType: allMedia[0]?.contentType,
@@ -387,6 +437,7 @@ export async function buildLineMessageContext(params: BuildLineMessageContextPar
     },
     locationContext,
     verboseLog: { kind: "inbound", mediaCount: allMedia.length },
+    inboundHistory,
   });
 
   return {
@@ -406,8 +457,9 @@ export async function buildLinePostbackContext(params: {
   event: PostbackEvent;
   cfg: OpenClawConfig;
   account: ResolvedLineAccount;
+  commandAuthorized: boolean;
 }) {
-  const { event, cfg, account } = params;
+  const { event, cfg, account, commandAuthorized } = params;
 
   const source = event.source;
   const { userId, groupId, roomId, isGroup, peerId, route } = resolveLineInboundRoute({
@@ -439,6 +491,7 @@ export async function buildLinePostbackContext(params: {
     rawBody,
     timestamp,
     messageSid,
+    commandAuthorized,
     media: {
       firstPath: "",
       firstContentType: undefined,
