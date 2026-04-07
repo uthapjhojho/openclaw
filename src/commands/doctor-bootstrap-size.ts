@@ -1,4 +1,3 @@
-import type { OpenClawConfig } from "../config/config.js";
 import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../agents/agent-scope.js";
 import {
   buildBootstrapInjectionStats,
@@ -9,6 +8,7 @@ import {
   resolveBootstrapMaxChars,
   resolveBootstrapTotalMaxChars,
 } from "../agents/pi-embedded-helpers.js";
+import type { OpenClawConfig } from "../config/config.js";
 import { note } from "../terminal/note.js";
 
 function formatInt(value: number): string {

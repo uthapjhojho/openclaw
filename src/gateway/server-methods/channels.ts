@@ -10,6 +10,7 @@ import { buildChannelAccountSnapshot } from "../../channels/plugins/status.js";
 import type { ChannelAccountSnapshot, ChannelPlugin } from "../../channels/plugins/types.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import { loadConfig, readConfigFileSnapshot } from "../../config/config.js";
+import { applyPluginAutoEnable } from "../../config/plugin-auto-enable.js";
 import { getChannelActivity } from "../../infra/channel-activity.js";
 import { DEFAULT_ACCOUNT_ID } from "../../routing/session-key.js";
 import { defaultRuntime } from "../../runtime.js";
@@ -82,7 +83,10 @@ export const channelsHandlers: GatewayRequestHandlers = {
     const probe = (params as { probe?: boolean }).probe === true;
     const timeoutMsRaw = (params as { timeoutMs?: unknown }).timeoutMs;
     const timeoutMs = typeof timeoutMsRaw === "number" ? Math.max(1000, timeoutMsRaw) : 10_000;
-    const cfg = loadConfig();
+    const cfg = applyPluginAutoEnable({
+      config: loadConfig(),
+      env: process.env,
+    }).config;
     const runtime = context.getRuntimeSnapshot();
     const plugins = listChannelPlugins();
     const pluginMap = new Map<ChannelId, ChannelPlugin>(
@@ -127,14 +131,12 @@ export const channelsHandlers: GatewayRequestHandlers = {
         cfg,
         accountIds,
       });
+      const accounts: ChannelAccountSnapshot[] = [];
       const resolvedAccounts: Record<string, unknown> = {};
       for (const accountId of accountIds) {
-        resolvedAccounts[accountId] = plugin.config.resolveAccount(cfg, accountId);
-      }
-
-      const buildAccountSnapshot = async (accountId: string): Promise<ChannelAccountSnapshot> => {
-        const account = resolvedAccounts[accountId];
+        const account = plugin.config.resolveAccount(cfg, accountId);
         const enabled = isAccountEnabled(plugin, account);
+        resolvedAccounts[accountId] = account;
         let probeResult: unknown;
         let lastProbeAt: number | null = null;
         if (probe && enabled && plugin.status?.probeAccount) {
@@ -188,10 +190,8 @@ export const channelsHandlers: GatewayRequestHandlers = {
         if (snapshot.lastOutboundAt == null) {
           snapshot.lastOutboundAt = activity.outboundAt;
         }
-        return snapshot;
-      };
-
-      const accounts = await Promise.all(accountIds.map(buildAccountSnapshot));
+        accounts.push(snapshot);
+      }
       const defaultAccount =
         accounts.find((entry) => entry.accountId === defaultAccountId) ?? accounts[0];
       return { accounts, defaultAccountId, defaultAccount, resolvedAccounts };

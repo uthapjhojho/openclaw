@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { SandboxDockerConfig } from "./sandbox/types.js";
 import { OPENCLAW_CLI_ENV_VALUE } from "../infra/openclaw-exec-env.js";
 import { buildSandboxCreateArgs } from "./sandbox/docker.js";
+import type { SandboxDockerConfig } from "./sandbox/types.js";
 
 describe("buildSandboxCreateArgs", () => {
   function createSandboxConfig(
@@ -134,6 +134,33 @@ describe("buildSandboxCreateArgs", () => {
     }
     expect(ulimitValues).toEqual(
       expect.arrayContaining(["nofile=1024:2048", "nproc=128", "core=0"]),
+    );
+  });
+
+  it("preserves the OpenClaw exec marker when strict env sanitization is enabled", () => {
+    const cfg = createSandboxConfig({
+      env: {
+        NODE_ENV: "test",
+      },
+    });
+
+    const args = buildSandboxCreateArgs({
+      name: "openclaw-sbx-marker",
+      cfg,
+      scopeKey: "main",
+      createdAtMs: 1700000000000,
+      envSanitizationOptions: {
+        strictMode: true,
+      },
+    });
+
+    expect(args).toEqual(
+      expect.arrayContaining([
+        "--env",
+        "NODE_ENV=test",
+        "--env",
+        `OPENCLAW_CLI=${OPENCLAW_CLI_ENV_VALUE}`,
+      ]),
     );
   });
 

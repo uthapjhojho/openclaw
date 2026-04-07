@@ -1,4 +1,5 @@
 import { HEARTBEAT_TOKEN } from "../auto-reply/tokens.js";
+import { normalizeLowercaseStringOrEmpty } from "../shared/string-coerce.js";
 
 // Build a dynamic prompt for cron events by embedding the actual event content.
 // This ensures the model sees the reminder text directly instead of relying on
@@ -72,18 +73,14 @@ function isHeartbeatAckEvent(evt: string): boolean {
 }
 
 function isHeartbeatNoiseEvent(evt: string): boolean {
-  const lower = evt.trim().toLowerCase();
+  const lower = normalizeLowercaseStringOrEmpty(evt);
   if (!lower) {
     return false;
   }
-  // Strip a leading 'Cron: ' or 'Cron (error): ' prefix so that a cron job
-  // summary like "Cron: HEARTBEAT_OK" is correctly detected as noise and not
-  // forwarded to the user as a real reminder.
-  const stripped = lower.replace(/^cron(?:\s*\(error\))?:\s+/, "");
   return (
-    isHeartbeatAckEvent(stripped) ||
-    stripped.includes("heartbeat poll") ||
-    stripped.includes("heartbeat wake")
+    isHeartbeatAckEvent(lower) ||
+    lower.includes("heartbeat poll") ||
+    lower.includes("heartbeat wake")
   );
 }
 

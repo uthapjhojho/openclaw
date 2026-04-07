@@ -1,17 +1,19 @@
 import { expect, vi } from "vitest";
-import type { CliDeps } from "../cli/deps.js";
 import { runEmbeddedPiAgent } from "../agents/pi-embedded.js";
+import type { CliDeps } from "../cli/deps.js";
 import { runCronIsolatedAgentTurn } from "./isolated-agent.js";
 import { makeCfg, makeJob } from "./isolated-agent.test-harness.js";
 
 export function createCliDeps(overrides: Partial<CliDeps> = {}): CliDeps {
   return {
-    sendMessageSlack: vi.fn(),
-    sendMessageWhatsApp: vi.fn(),
-    sendMessageTelegram: vi.fn(),
-    sendMessageDiscord: vi.fn(),
-    sendMessageSignal: vi.fn(),
-    sendMessageIMessage: vi.fn(),
+    sendMessageSlack: vi.fn().mockResolvedValue({ messageTs: "slack-1", channel: "C1" }),
+    sendMessageWhatsApp: vi
+      .fn()
+      .mockResolvedValue({ messageId: "wa-1", toJid: "123@s.whatsapp.net" }),
+    sendMessageTelegram: vi.fn().mockResolvedValue({ messageId: "tg-1", chatId: "123" }),
+    sendMessageDiscord: vi.fn().mockResolvedValue({ messageId: "discord-1", channelId: "123" }),
+    sendMessageSignal: vi.fn().mockResolvedValue({ messageId: "signal-1", conversationId: "123" }),
+    sendMessageIMessage: vi.fn().mockResolvedValue({ messageId: "imessage-1", chatId: "123" }),
     ...overrides,
   };
 }

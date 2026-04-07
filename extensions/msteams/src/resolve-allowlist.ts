@@ -1,4 +1,8 @@
-import { mapAllowlistResolutionInputs } from "openclaw/plugin-sdk/compat";
+import { mapAllowlistResolutionInputs } from "openclaw/plugin-sdk/allow-from";
+import {
+  normalizeLowercaseStringOrEmpty,
+  normalizeOptionalLowercaseString,
+} from "openclaw/plugin-sdk/text-runtime";
 import { searchGraphUsers } from "./graph-users.js";
 import {
   listChannelsForTeam,
@@ -120,11 +124,28 @@ export async function resolveMSTeamsChannelAllowlist(params: {
         return { input, resolved: false, note: "team not found" };
       }
       const teamMatch = teams[0];
-      const teamId = teamMatch.id?.trim();
+      const graphTeamId = teamMatch.id?.trim();
       const teamName = teamMatch.displayName?.trim() || team;
-      if (!teamId) {
+      if (!graphTeamId) {
         return { input, resolved: false, note: "team id missing" };
       }
+      // Bot Framework sends the General channel's conversation ID as
+      // channelData.team.id at runtime, NOT the Graph API group GUID.
+      // Fetch channels upfront so we can resolve the correct key format for
+      // runtime matching and reuse the list for channel lookups.
+      let teamChannels: Awaited<ReturnType<typeof listChannelsForTeam>> = [];
+      try {
+        teamChannels = await listChannelsForTeam(token, graphTeamId);
+      } catch {
+        // API failure (rate limit, network error) — fall back to Graph GUID as team key
+      }
+      const generalChannel = teamChannels.find(
+        (ch) => normalizeOptionalLowercaseString(ch.displayName) === "general",
+      );
+      // Use the General channel's conversation ID as the team key — this
+      // matches what Bot Framework sends at runtime. Fall back to the Graph
+      // GUID if the General channel isn't found (renamed or deleted).
+      const teamId = generalChannel?.id?.trim() || graphTeamId;
       if (!channel) {
         return {
           input,
@@ -134,12 +155,15 @@ export async function resolveMSTeamsChannelAllowlist(params: {
           note: teams.length > 1 ? "multiple teams; chose first" : undefined,
         };
       }
-      const channels = await listChannelsForTeam(token, teamId);
+      // Reuse teamChannels — already fetched above
+      const normalizedChannel = normalizeOptionalLowercaseString(channel);
       const channelMatch =
-        channels.find((item) => item.id === channel) ??
-        channels.find((item) => item.displayName?.toLowerCase() === channel.toLowerCase()) ??
-        channels.find((item) =>
-          item.displayName?.toLowerCase().includes(channel.toLowerCase() ?? ""),
+        teamChannels.find((item) => item.id === channel) ??
+        teamChannels.find(
+          (item) => normalizeOptionalLowercaseString(item.displayName) === normalizedChannel,
+        ) ??
+        teamChannels.find((item) =>
+          normalizeLowercaseStringOrEmpty(item.displayName ?? "").includes(normalizedChannel ?? ""),
         );
       if (!channelMatch?.id) {
         return { input, resolved: false, note: "channel not found" };
@@ -151,7 +175,7 @@ export async function resolveMSTeamsChannelAllowlist(params: {
         teamName,
         channelId: channelMatch.id,
         channelName: channelMatch.displayName ?? channel,
-        note: channels.length > 1 ? "multiple channels; chose first" : undefined,
+        note: teamChannels.length > 1 ? "multiple channels; chose first" : undefined,
       };
     },
   });

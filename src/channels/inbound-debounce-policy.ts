@@ -1,11 +1,12 @@
-import type { CommandNormalizeOptions } from "../auto-reply/commands-registry.js";
-import type { OpenClawConfig } from "../config/types.js";
 import { hasControlCommand } from "../auto-reply/command-detection.js";
+import type { CommandNormalizeOptions } from "../auto-reply/commands-registry.js";
 import {
   createInboundDebouncer,
   resolveInboundDebounceMs,
   type InboundDebounceCreateParams,
 } from "../auto-reply/inbound-debounce.js";
+import type { OpenClawConfig } from "../config/types.js";
+import { normalizeOptionalString } from "../shared/string-coerce.js";
 
 export function shouldDebounceTextInbound(params: {
   text: string | null | undefined;
@@ -20,7 +21,7 @@ export function shouldDebounceTextInbound(params: {
   if (params.hasMedia) {
     return false;
   }
-  const text = params.text?.trim() ?? "";
+  const text = normalizeOptionalString(params.text) ?? "";
   if (!text) {
     return false;
   }

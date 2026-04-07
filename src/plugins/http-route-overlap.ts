@@ -1,5 +1,5 @@
-import type { OpenClawPluginHttpRouteMatch } from "./types.js";
 import { canonicalizePathVariant } from "../gateway/security-path.js";
+import type { OpenClawPluginHttpRouteMatch } from "./types.js";
 
 type PluginHttpRouteLike = {
   path: string;

@@ -1,5 +1,5 @@
+import { getChannelPlugin } from "../channels/plugins/index.js";
 import type { ChannelId } from "../channels/plugins/types.js";
-import type { ChannelManager } from "./server-channels.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import {
   DEFAULT_CHANNEL_CONNECT_GRACE_MS,
@@ -8,6 +8,7 @@ import {
   resolveChannelRestartReason,
   type ChannelHealthPolicy,
 } from "./channel-health-policy.js";
+import type { ChannelManager } from "./server-channels.js";
 
 const log = createSubsystemLogger("gateway/health-monitor");
 
@@ -118,6 +119,9 @@ export function startChannelHealthMonitor(deps: ChannelHealthMonitorDeps): Chann
           if (!status) {
             continue;
           }
+          if (!channelManager.isHealthMonitorEnabled(channelId as ChannelId, accountId)) {
+            continue;
+          }
           if (channelManager.isManuallyStopped(channelId as ChannelId, accountId)) {
             continue;
           }
@@ -126,6 +130,7 @@ export function startChannelHealthMonitor(deps: ChannelHealthMonitorDeps): Chann
             now,
             staleEventThresholdMs: timing.staleEventThresholdMs,
             channelConnectGraceMs: timing.channelConnectGraceMs,
+            skipStaleSocketCheck: getChannelPlugin(channelId)?.status?.skipStaleSocketHealthCheck,
           };
           const health = evaluateChannelHealth(status, healthPolicy);
           if (health.healthy) {

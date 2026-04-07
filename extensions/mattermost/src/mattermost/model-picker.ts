@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { MattermostInteractiveButtonInput } from "./interactions.js";
 import {
   loadSessionStore,
   normalizeProviderId,
@@ -6,8 +7,7 @@ import {
   resolveStoredModelOverride,
   type ModelsProviderData,
   type OpenClawConfig,
-} from "openclaw/plugin-sdk/mattermost";
-import type { MattermostInteractiveButtonInput } from "./interactions.js";
+} from "./runtime-api.js";
 
 const MATTERMOST_MODEL_PICKER_CONTEXT_KEY = "oc_model_picker";
 const MODELS_PAGE_SIZE = 8;
@@ -36,19 +36,36 @@ export type MattermostModelPickerRenderedView = {
 
 function splitModelRef(modelRef?: string | null): { provider: string; model: string } | null {
   const trimmed = modelRef?.trim();
-  if (!trimmed) {
+  const match = trimmed?.match(/^([^/]+)\/(.+)$/u);
+  if (!match) {
     return null;
   }
-  const slashIndex = trimmed.indexOf("/");
-  if (slashIndex <= 0 || slashIndex >= trimmed.length - 1) {
-    return null;
-  }
-  const provider = normalizeProviderId(trimmed.slice(0, slashIndex));
-  const model = trimmed.slice(slashIndex + 1).trim();
+  const provider = normalizeProviderId(match[1]);
+  // Mattermost copy should normalize accidental whitespace around the model.
+  const model = match[2].trim();
   if (!provider || !model) {
     return null;
   }
   return { provider, model };
+}
+
+function readContextString(context: Record<string, unknown>, key: string, fallback = ""): string {
+  const value = context[key];
+  return typeof value === "string" ? value : fallback;
+}
+
+function readContextNumber(context: Record<string, unknown>, key: string): number | undefined {
+  const value = context[key];
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string") {
+    const parsed = Number.parseInt(value.trim(), 10);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return undefined;
 }
 
 function normalizePage(value: number | undefined): number {
@@ -162,8 +179,8 @@ export function parseMattermostModelPickerContext(
     return null;
   }
 
-  const ownerUserId = String(context.ownerUserId ?? "").trim();
-  const action = String(context.action ?? "").trim();
+  const ownerUserId = readContextString(context, "ownerUserId").trim();
+  const action = readContextString(context, "action").trim();
   if (!ownerUserId) {
     return null;
   }
@@ -172,8 +189,8 @@ export function parseMattermostModelPickerContext(
     return { action, ownerUserId };
   }
 
-  const provider = normalizeProviderId(String(context.provider ?? ""));
-  const page = Number.parseInt(String(context.page ?? "1"), 10);
+  const provider = normalizeProviderId(readContextString(context, "provider"));
+  const page = readContextNumber(context, "page");
   if (!provider) {
     return null;
   }
@@ -188,7 +205,7 @@ export function parseMattermostModelPickerContext(
   }
 
   if (action === "select") {
-    const model = String(context.model ?? "").trim();
+    const model = readContextString(context, "model").trim();
     if (!model) {
       return null;
     }
@@ -233,6 +250,7 @@ export function resolveMattermostModelPickerCurrentModel(params: {
       sessionEntry,
       sessionStore,
       sessionKey: params.route.sessionKey,
+      defaultProvider: params.data.resolvedDefault.provider,
     });
     if (!override?.model) {
       return fallback;

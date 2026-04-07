@@ -1,4 +1,4 @@
-import type { Locale, TranslationMap } from "./types.ts";
+import { getSafeLocalStorage } from "../../local-storage.ts";
 import { en } from "../locales/en.ts";
 import {
   DEFAULT_LOCALE,
@@ -7,6 +7,7 @@ import {
   loadLazyLocaleTranslation,
   resolveNavigatorLocale,
 } from "./registry.ts";
+import type { Locale, TranslationMap } from "./types.ts";
 
 type Subscriber = (locale: Locale) => void;
 
@@ -21,12 +22,38 @@ class I18nManager {
     this.loadLocale();
   }
 
+  private readStoredLocale(): string | null {
+    const storage = getSafeLocalStorage();
+    if (!storage) {
+      return null;
+    }
+    try {
+      return storage.getItem("openclaw.i18n.locale");
+    } catch {
+      return null;
+    }
+  }
+
+  private persistLocale(locale: Locale) {
+    const storage = getSafeLocalStorage();
+    if (!storage) {
+      return;
+    }
+    try {
+      storage.setItem("openclaw.i18n.locale", locale);
+    } catch {
+      // Ignore storage write failures in private/blocked contexts.
+    }
+  }
+
   private resolveInitialLocale(): Locale {
-    const saved = localStorage.getItem("openclaw.i18n.locale");
+    const saved = this.readStoredLocale();
     if (isSupportedLocale(saved)) {
       return saved;
     }
-    return resolveNavigatorLocale(navigator.language);
+    const language =
+      typeof globalThis.navigator?.language === "string" ? globalThis.navigator.language : null;
+    return resolveNavigatorLocale(language ?? "");
   }
 
   private loadLocale() {
@@ -64,7 +91,7 @@ class I18nManager {
     }
 
     this.locale = locale;
-    localStorage.setItem("openclaw.i18n.locale", locale);
+    this.persistLocale(locale);
     this.notify();
   }
 

@@ -1,4 +1,3 @@
-import type { GatewayRequestHandlers } from "./types.js";
 import {
   drainNodePendingWork,
   enqueueNodePendingWork,
@@ -19,6 +18,7 @@ import {
   NODE_WAKE_RECONNECT_WAIT_MS,
   waitForNodeReconnect,
 } from "./nodes.js";
+import type { GatewayRequestHandlers } from "./types.js";
 
 function resolveClientNodeId(
   client: { connect?: { device?: { id?: string }; client?: { id?: string } } } | null,

@@ -1,24 +1,23 @@
-import type { IncomingMessage, ServerResponse } from "node:http";
 import * as fs from "node:fs/promises";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import * as os from "node:os";
 import * as path from "node:path";
-import { describe, expect, it, test, vi } from "vitest";
-import type { RequestFrame } from "./protocol/index.js";
-import type { GatewayClient as GatewayMethodClient } from "./server-methods/types.js";
-import type { GatewayRequestContext, RespondFn } from "./server-methods/types.js";
-import type { GatewayWsClient } from "./server/ws-types.js";
+import { beforeEach, describe, expect, it, test, vi } from "vitest";
 import { defaultVoiceWakeTriggers } from "../infra/voicewake.js";
-import { GatewayClient } from "./client.js";
 import { handleControlUiHttpRequest } from "./control-ui.js";
 import {
   DEFAULT_DANGEROUS_NODE_COMMANDS,
   resolveNodeCommandAllowlist,
 } from "./node-command-policy.js";
+import type { RequestFrame } from "./protocol/index.js";
 import { createGatewayBroadcaster } from "./server-broadcast.js";
 import { createChatRunRegistry } from "./server-chat.js";
 import { handleNodeInvokeResult } from "./server-methods/nodes.handlers.invoke-result.js";
+import type { GatewayClient as GatewayMethodClient } from "./server-methods/types.js";
+import type { GatewayRequestContext, RespondFn } from "./server-methods/types.js";
 import { createNodeSubscriptionManager } from "./server-node-subscriptions.js";
 import { formatError, normalizeVoiceWakeTriggers } from "./server-utils.js";
+import type { GatewayWsClient } from "./server/ws-types.js";
 
 function makeControlUiResponse() {
   const res = {
@@ -45,6 +44,29 @@ vi.mock("ws", () => ({
   },
 }));
 
+let GatewayClient: typeof import("./client.js").GatewayClient;
+
+async function loadFreshGatewayClientModuleForTest() {
+  vi.resetModules();
+  vi.doMock("ws", () => ({
+    WebSocket: class MockWebSocket {
+      on = vi.fn();
+      close = vi.fn();
+      send = vi.fn();
+
+      constructor(url: unknown, opts: unknown) {
+        wsMockState.last = { url, opts };
+      }
+    },
+  }));
+  ({ GatewayClient } = await import("./client.js"));
+}
+
+beforeEach(async () => {
+  wsMockState.last = null;
+  await loadFreshGatewayClientModuleForTest();
+});
+
 describe("GatewayClient", () => {
   async function withControlUiRoot(
     params: { faviconSvg?: string; indexHtml?: string },
@@ -63,7 +85,6 @@ describe("GatewayClient", () => {
   }
 
   test("uses a large maxPayload for node snapshots", () => {
-    wsMockState.last = null;
     const client = new GatewayClient({ url: "ws://127.0.0.1:1" });
     client.start();
     const last = wsMockState.last as { url: unknown; opts: unknown } | null;
@@ -182,16 +203,19 @@ describe("gateway broadcaster", () => {
         socket: approvalsSocket as unknown as GatewayWsClient["socket"],
         connect: { role: "operator", scopes: ["operator.approvals"] } as GatewayWsClient["connect"],
         connId: "c-approvals",
+        usesSharedGatewayAuth: false,
       },
       {
         socket: pairingSocket as unknown as GatewayWsClient["socket"],
         connect: { role: "operator", scopes: ["operator.pairing"] } as GatewayWsClient["connect"],
         connId: "c-pairing",
+        usesSharedGatewayAuth: false,
       },
       {
         socket: readSocket as unknown as GatewayWsClient["socket"],
         connect: { role: "operator", scopes: ["operator.read"] } as GatewayWsClient["connect"],
         connId: "c-read",
+        usesSharedGatewayAuth: false,
       },
     ]);
 
@@ -347,7 +371,13 @@ describe("resolveNodeCommandAllowlist", () => {
     expect(allow.has("notifications.actions")).toBe(true);
     expect(allow.has("device.permissions")).toBe(true);
     expect(allow.has("device.health")).toBe(true);
+    expect(allow.has("callLog.search")).toBe(true);
     expect(allow.has("system.notify")).toBe(true);
+    expect(allow.has("sms.search")).toBe(false);
+  });
+
+  it("treats sms.search as dangerous by default", () => {
+    expect(DEFAULT_DANGEROUS_NODE_COMMANDS).toContain("sms.search");
   });
 
   it("can explicitly allow dangerous commands via allowCommands", () => {

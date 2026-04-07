@@ -1,8 +1,8 @@
-import type { FallbackAttempt, ModelCandidate } from "./model-fallback.types.js";
-import type { FailoverReason } from "./pi-embedded-helpers.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { sanitizeForLog } from "../terminal/ansi.js";
+import type { FallbackAttempt, ModelCandidate } from "./model-fallback.types.js";
 import { buildTextObservationFields } from "./pi-embedded-error-observation.js";
+import type { FailoverReason } from "./pi-embedded-helpers.js";
 
 const decisionLog = createSubsystemLogger("model-fallback").child("decision");
 

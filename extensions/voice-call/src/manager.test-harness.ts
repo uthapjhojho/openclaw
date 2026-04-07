@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { VoiceCallConfigSchema } from "./config.js";
+import { CallManager } from "./manager.js";
 import type { VoiceCallProvider } from "./providers/base.js";
 import type {
   GetCallStatusInput,
@@ -15,11 +17,10 @@ import type {
   WebhookContext,
   WebhookVerificationResult,
 } from "./types.js";
-import { VoiceCallConfigSchema } from "./config.js";
-import { CallManager } from "./manager.js";
 
 export class FakeProvider implements VoiceCallProvider {
   readonly name: "plivo" | "twilio";
+  twilioStreamConnectEnabled = true;
   readonly playTtsCalls: PlayTtsInput[] = [];
   readonly hangupCalls: HangupCallInput[] = [];
   readonly startListeningCalls: StartListeningInput[] = [];
@@ -61,13 +62,14 @@ export class FakeProvider implements VoiceCallProvider {
   async getCallStatus(_input: GetCallStatusInput): Promise<GetCallStatusResult> {
     return this.getCallStatusResult;
   }
+
+  isConversationStreamConnectEnabled(): boolean {
+    return this.name === "twilio" && this.twilioStreamConnectEnabled;
+  }
 }
 
-let storeSeq = 0;
-
 export function createTestStorePath(): string {
-  storeSeq += 1;
-  return path.join(os.tmpdir(), `openclaw-voice-call-test-${Date.now()}-${storeSeq}`);
+  return fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-voice-call-test-"));
 }
 
 export async function createManagerHarness(

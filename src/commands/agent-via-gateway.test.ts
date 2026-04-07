@@ -12,9 +12,9 @@ vi.mock("./agent.js", () => ({
 }));
 
 import type { OpenClawConfig } from "../config/config.js";
-import type { RuntimeEnv } from "../runtime.js";
 import * as configModule from "../config/config.js";
 import { callGateway } from "../gateway/call.js";
+import type { RuntimeEnv } from "../runtime.js";
 import { agentCliCommand } from "./agent-via-gateway.js";
 import { agentCommand } from "./agent.js";
 
@@ -135,7 +135,24 @@ describe("agentCliCommand", () => {
 
       expect(callGateway).not.toHaveBeenCalled();
       expect(agentCommand).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(agentCommand).mock.calls[0]?.[0]).toMatchObject({
+        cleanupBundleMcpOnRunEnd: true,
+      });
       expect(runtime.log).toHaveBeenCalledWith("local");
+    });
+  });
+
+  it("does not force bundle MCP cleanup on gateway fallback", async () => {
+    await withTempStore(async () => {
+      vi.mocked(callGateway).mockRejectedValue(new Error("gateway not connected"));
+      mockLocalAgentReply();
+
+      await agentCliCommand({ message: "hi", to: "+1555" }, runtime);
+
+      expect(agentCommand).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(agentCommand).mock.calls[0]?.[0]).not.toMatchObject({
+        cleanupBundleMcpOnRunEnd: true,
+      });
     });
   });
 });

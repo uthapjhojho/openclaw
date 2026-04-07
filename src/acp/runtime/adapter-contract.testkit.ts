@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { expect } from "vitest";
-import type { AcpRuntime, AcpRuntimeEvent } from "./types.js";
+import { normalizeOptionalString } from "../../shared/string-coerce.js";
 import { toAcpRuntimeError } from "./errors.js";
+import type { AcpRuntime, AcpRuntimeEvent } from "./types.js";
 
 export type AcpRuntimeAdapterContractParams = {
   createRuntime: () => Promise<AcpRuntime> | AcpRuntime;
@@ -75,7 +76,7 @@ export async function runAcpRuntimeAdapterContract(
 
   let errorThrown: unknown = null;
   const errorEvents: AcpRuntimeEvent[] = [];
-  const errorPrompt = params.errorPrompt?.trim();
+  const errorPrompt = normalizeOptionalString(params.errorPrompt);
   if (errorPrompt) {
     try {
       for await (const event of runtime.runTurn({

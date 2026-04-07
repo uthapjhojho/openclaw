@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import type { ReadinessChecker } from "./server/readiness.js";
 import {
   AUTH_TOKEN,
   AUTH_NONE,
@@ -8,6 +7,7 @@ import {
   dispatchRequest,
   withGatewayServer,
 } from "./server-http.test-harness.js";
+import type { ReadinessChecker } from "./server/readiness.js";
 
 describe("gateway probe endpoints", () => {
   it("returns detailed readiness payload for local /ready requests", async () => {

@@ -1,5 +1,6 @@
-import type { DiffViewerPayload } from "./types.js";
+import { isRecord } from "openclaw/plugin-sdk/text-runtime";
 import { DIFF_INDICATORS, DIFF_LAYOUTS, DIFF_THEMES } from "./types.js";
+import type { DiffViewerPayload } from "./types.js";
 
 const OVERFLOW_VALUES = ["scroll", "wrap"] as const;
 
@@ -83,10 +84,6 @@ function isViewerOptions(value: unknown): boolean {
   }
 
   return true;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
 
 function includesValue<T extends readonly string[]>(values: T, value: unknown): value is T[number] {

@@ -1,6 +1,6 @@
 import type { PluginChannelRegistration, PluginRegistry } from "../../plugins/registry.js";
+import { getActivePluginChannelRegistry } from "../../plugins/runtime.js";
 import type { ChannelId } from "./types.js";
-import { getActivePluginRegistry } from "../../plugins/runtime.js";
 
 type ChannelRegistryValueResolver<TValue> = (
   entry: PluginChannelRegistration,
@@ -13,7 +13,7 @@ export function createChannelRegistryLoader<TValue>(
   let lastRegistry: PluginRegistry | null = null;
 
   return async (id: ChannelId): Promise<TValue | undefined> => {
-    const registry = getActivePluginRegistry();
+    const registry = getActivePluginChannelRegistry();
     if (registry !== lastRegistry) {
       cache.clear();
       lastRegistry = registry;

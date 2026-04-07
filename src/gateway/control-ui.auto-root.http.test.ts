@@ -1,5 +1,5 @@
-import type { IncomingMessage } from "node:http";
 import fs from "node:fs/promises";
+import type { IncomingMessage } from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -9,8 +9,10 @@ const { resolveControlUiRootSyncMock, isPackageProvenControlUiRootSyncMock } = v
   isPackageProvenControlUiRootSyncMock: vi.fn().mockReturnValue(true),
 }));
 
-vi.mock("../infra/control-ui-assets.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../infra/control-ui-assets.js")>();
+vi.mock("../infra/control-ui-assets.js", async () => {
+  const actual = await vi.importActual<typeof import("../infra/control-ui-assets.js")>(
+    "../infra/control-ui-assets.js",
+  );
   return {
     ...actual,
     resolveControlUiRootSync: resolveControlUiRootSyncMock,

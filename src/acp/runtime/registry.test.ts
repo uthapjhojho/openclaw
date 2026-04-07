@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { AcpRuntime } from "./types.js";
 import { AcpRuntimeError } from "./errors.js";
 import {
   __testing,
@@ -8,6 +7,7 @@ import {
   requireAcpRuntimeBackend,
   unregisterAcpRuntimeBackend,
 } from "./registry.js";
+import type { AcpRuntime } from "./types.js";
 
 function createRuntimeStub(): AcpRuntime {
   return {
@@ -60,6 +60,26 @@ describe("acp runtime registry", () => {
   it("throws a typed missing-backend error when no backend is registered", () => {
     expect(() => requireAcpRuntimeBackend()).toThrowError(AcpRuntimeError);
     expect(() => requireAcpRuntimeBackend()).toThrowError(/ACP runtime backend is not configured/i);
+  });
+
+  it("resolves the first healthy backend when requireAcpRuntimeBackend has no explicit id", () => {
+    const unhealthyRuntime = createRuntimeStub();
+    const healthyRuntime = createRuntimeStub();
+
+    registerAcpRuntimeBackend({
+      id: "unhealthy",
+      runtime: unhealthyRuntime,
+      healthy: () => false,
+    });
+    registerAcpRuntimeBackend({
+      id: "healthy",
+      runtime: healthyRuntime,
+      healthy: () => true,
+    });
+
+    const backend = requireAcpRuntimeBackend();
+    expect(backend.id).toBe("healthy");
+    expect(backend.runtime).toBe(healthyRuntime);
   });
 
   it("throws a typed unavailable error when the requested backend is unhealthy", () => {

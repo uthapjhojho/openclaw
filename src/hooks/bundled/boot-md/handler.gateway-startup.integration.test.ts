@@ -1,16 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resolveAgentWorkspaceDir } from "../../../agents/agent-scope.js";
 import type { CliDeps } from "../../../cli/deps.js";
 import type { OpenClawConfig } from "../../../config/config.js";
-import { resolveAgentWorkspaceDir } from "../../../agents/agent-scope.js";
 
 const runBootOnce = vi.fn();
 
-vi.mock("../../../gateway/boot.js", () => ({ runBootOnce }));
-vi.mock("../../../logging/subsystem.js", () => ({
-  createSubsystemLogger: () => ({
+function createMockLogger() {
+  return {
     warn: vi.fn(),
     debug: vi.fn(),
-  }),
+    child: vi.fn(() => createMockLogger()),
+  };
+}
+
+vi.mock("../../../gateway/boot.js", () => ({ runBootOnce }));
+vi.mock("../../../logging/subsystem.js", () => ({
+  createSubsystemLogger: () => createMockLogger(),
 }));
 
 const { default: runBootChecklist } = await import("./handler.js");
