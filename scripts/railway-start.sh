@@ -415,7 +415,7 @@ if ! python3 -c "import pip" 2>/dev/null; then
 fi
 find /data/openclaw/skills -name "requirements.txt" -not -path "*/.imap-smtp-email.bak/*" | while read req; do
   echo "  Installing: $req"
-  python3 -m pip install -q -r "$req" 2>&1 || echo "  WARNING: pip install failed for $req"
+  python3 -m pip install -q --break-system-packages -r "$req" 2>&1 || echo "  WARNING: pip install failed for $req"
 done
 
 # Start the reverse proxy on Railway's public PORT.
