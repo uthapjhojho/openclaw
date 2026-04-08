@@ -7,6 +7,12 @@
 
 set -e
 
+# Ensure /data/openclaw is writable — persistent disk may have stale root-owned dirs
+if [ -d "/data/openclaw" ]; then
+  chmod -R u+rwX /data/openclaw 2>/dev/null || true
+  echo "[railway-start] Ensured /data/openclaw is writable"
+fi
+
 # Repair gateway.auth.mode if it holds an invalid value.
 # Valid values (from src/config/types.gateway.ts): token | password | trusted-proxy
 # Uses write-to-temp-then-rename to avoid EACCES on the original file.
