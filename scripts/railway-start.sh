@@ -7,10 +7,10 @@
 
 set -e
 
-# Ensure /data/openclaw is writable — persistent disk may have stale root-owned dirs
+# Ensure /data/openclaw is owned by the openclaw user — persistent disk may have stale root-owned dirs
 if [ -d "/data/openclaw" ]; then
-  chmod -R u+rwX /data/openclaw 2>/dev/null || true
-  echo "[railway-start] Ensured /data/openclaw is writable"
+  chown -R openclaw /data/openclaw 2>/dev/null || chmod -R 777 /data/openclaw 2>/dev/null || true
+  echo "[railway-start] Fixed /data/openclaw ownership"
 fi
 
 # Repair gateway.auth.mode if it holds an invalid value.
