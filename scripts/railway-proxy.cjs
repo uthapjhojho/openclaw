@@ -79,10 +79,12 @@ server.on("upgrade", (req, clientSocket, head) => {
   const upstream = net.connect(port, "127.0.0.1", () => {
     const requestLine = `${req.method} ${req.url} HTTP/1.1\r\n`;
     const headerStr = Object.entries(cleaned)
-      .map(([k, v]) => `${k}: ${v}`)
+      .map(([k, v]) => `${k}: ${String(v)}`)
       .join("\r\n");
     upstream.write(`${requestLine}${headerStr}\r\n\r\n`);
-    if (head && head.length) upstream.write(head);
+    if (head && head.length) {
+      upstream.write(head);
+    }
     upstream.pipe(clientSocket);
     clientSocket.pipe(upstream);
   });
@@ -97,7 +99,7 @@ server.on("upgrade", (req, clientSocket, head) => {
 
 server.listen(PUBLIC_PORT, "0.0.0.0", () => {
   console.log(
-    `[railway-proxy] listening on port ${PUBLIC_PORT} → gateway:${GATEWAY_PORT}, msteams:${MSTEAMS_PORT}`
+    `[railway-proxy] listening on port ${PUBLIC_PORT} → gateway:${GATEWAY_PORT}, msteams:${MSTEAMS_PORT}`,
   );
 });
 
