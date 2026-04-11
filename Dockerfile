@@ -71,7 +71,8 @@ COPY --from=ext-deps /out/ ./${OPENCLAW_BUNDLED_PLUGIN_DIR}/
 
 # Reduce OOM risk on low-memory hosts during dependency installation.
 # Docker builds on small VMs may otherwise fail with "Killed" (exit 137).
-RUN NODE_OPTIONS=--max-old-space-size=2048 pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=openclaw-pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
+    NODE_OPTIONS=--max-old-space-size=2048 pnpm install --frozen-lockfile
 
 COPY . .
 
@@ -151,7 +152,9 @@ WORKDIR /app
 # On the full bookworm image these are already installed (apt-get is a no-op).
 # Smoke workflows can opt out of distro upgrades to cut repeated CI time while
 # keeping the default runtime image behavior unchanged.
-RUN apt-get update && \
+RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,id=openclaw-bookworm-apt-lists,target=/var/lib/apt,sharing=locked \
+    apt-get update && \
     if [ "${OPENCLAW_DOCKER_APT_UPGRADE}" != "0" ]; then \
       DEBIAN_FRONTEND=noninteractive apt-get upgrade -y --no-install-recommends; \
     fi && \
@@ -168,7 +171,6 @@ COPY --from=runtime-assets --chown=node:node /app/${OPENCLAW_BUNDLED_PLUGIN_DIR}
 COPY --from=runtime-assets --chown=node:node /app/skills ./skills
 COPY --from=runtime-assets --chown=node:node /app/docs ./docs
 COPY --from=runtime-assets --chown=node:node /app/qa ./qa
-COPY --from=runtime-assets /app/scripts ./scripts
 
 # Keep pnpm available in the runtime image for container-local workflows.
 # Use a shared Corepack home so the non-root `node` user does not need a
@@ -190,7 +192,9 @@ RUN install -d -m 0755 "$COREPACK_HOME" && \
 # Install additional system packages needed by your skills or extensions.
 # Example: docker build --build-arg OPENCLAW_DOCKER_APT_PACKAGES="python3 wget" .
 ARG OPENCLAW_DOCKER_APT_PACKAGES=""
-RUN if [ -n "$OPENCLAW_DOCKER_APT_PACKAGES" ]; then \
+RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,id=openclaw-bookworm-apt-lists,target=/var/lib/apt,sharing=locked \
+    if [ -n "$OPENCLAW_DOCKER_APT_PACKAGES" ]; then \
       apt-get update && \
       DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends $OPENCLAW_DOCKER_APT_PACKAGES; \
     fi
@@ -200,7 +204,9 @@ RUN if [ -n "$OPENCLAW_DOCKER_APT_PACKAGES" ]; then \
 # Adds ~300MB but eliminates the 60-90s Playwright install on every container start.
 # Must run after node_modules COPY so playwright-core is available.
 ARG OPENCLAW_INSTALL_BROWSER=""
-RUN if [ -n "$OPENCLAW_INSTALL_BROWSER" ]; then \
+RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,id=openclaw-bookworm-apt-lists,target=/var/lib/apt,sharing=locked \
+    if [ -n "$OPENCLAW_INSTALL_BROWSER" ]; then \
       apt-get update && \
       DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends xvfb && \
       mkdir -p /home/node/.cache/ms-playwright && \
@@ -215,7 +221,9 @@ RUN if [ -n "$OPENCLAW_INSTALL_BROWSER" ]; then \
 # Required for agents.defaults.sandbox to function in Docker deployments.
 ARG OPENCLAW_INSTALL_DOCKER_CLI=""
 ARG OPENCLAW_DOCKER_GPG_FINGERPRINT="9DC858229FC7DD38854AE2D88D81803C0EBFCD88"
-RUN if [ -n "$OPENCLAW_INSTALL_DOCKER_CLI" ]; then \
+RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,id=openclaw-bookworm-apt-lists,target=/var/lib/apt,sharing=locked \
+    if [ -n "$OPENCLAW_INSTALL_DOCKER_CLI" ]; then \
       apt-get update && \
       DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         ca-certificates curl gnupg && \
@@ -264,7 +272,4 @@ USER node
 # For external access from host/ingress, override bind to "lan" and set auth.
 HEALTHCHECK --interval=3m --timeout=10s --start-period=15s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:18789/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-# Railway: override upstream USER node so railway-start.sh runs as root
-# and can chown /data/openclaw on the persistent volume.
-USER root
 CMD ["node", "openclaw.mjs", "gateway", "--allow-unconfigured"]
