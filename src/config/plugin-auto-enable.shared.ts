@@ -1,4 +1,5 @@
-import { normalizeProviderId } from "../agents/model-selection.js";
+import { collectConfiguredAgentHarnessRuntimes } from "../agents/harness-runtimes.js";
+import { normalizeProviderId } from "../agents/provider-id.js";
 import {
   hasPotentialConfiguredChannels,
   listPotentialConfiguredChannelIds,
@@ -15,7 +16,6 @@ import { resolvePluginSetupAutoEnableReasons } from "../plugins/setup-registry.j
 import { normalizeOptionalLowercaseString } from "../shared/string-coerce.js";
 import { isRecord } from "../utils.js";
 import { isChannelConfigured } from "./channel-configured.js";
-import type { OpenClawConfig } from "./config.js";
 import { shouldSkipPreferredPluginAutoEnable } from "./plugin-auto-enable.prefer-over.js";
 import type {
   PluginAutoEnableCandidate,
@@ -23,6 +23,7 @@ import type {
 } from "./plugin-auto-enable.types.js";
 import { ensurePluginAllowlisted } from "./plugins-allowlist.js";
 import { isBlockedObjectKey } from "./prototype-keys.js";
+import type { OpenClawConfig } from "./types.openclaw.js";
 export type {
   PluginAutoEnableCandidate,
   PluginAutoEnableResult,
@@ -97,6 +98,28 @@ function extractProviderFromModelRef(value: string): string | null {
     return null;
   }
   return normalizeProviderId(trimmed.slice(0, slash));
+}
+
+function hasConfiguredEmbeddedHarnessRuntime(cfg: OpenClawConfig, env: NodeJS.ProcessEnv): boolean {
+  return collectConfiguredAgentHarnessRuntimes(cfg, env).length > 0;
+}
+
+function resolveAgentHarnessOwnerPluginIds(
+  registry: PluginManifestRegistry,
+  runtime: string,
+): string[] {
+  const normalizedRuntime = normalizeOptionalLowercaseString(runtime);
+  if (!normalizedRuntime) {
+    return [];
+  }
+  return registry.plugins
+    .filter((plugin) =>
+      (plugin.activation?.onAgentHarnesses ?? []).some(
+        (entry) => normalizeOptionalLowercaseString(entry) === normalizedRuntime,
+      ),
+    )
+    .map((plugin) => plugin.id)
+    .toSorted((left, right) => left.localeCompare(right));
 }
 
 function isProviderConfigured(cfg: OpenClawConfig, providerId: string): boolean {
@@ -256,12 +279,51 @@ function hasConfiguredPluginConfigEntry(cfg: OpenClawConfig): boolean {
   );
 }
 
+function listContainsNormalized(value: unknown, expected: string): boolean {
+  return (
+    Array.isArray(value) &&
+    value.some((entry) => normalizeOptionalLowercaseString(entry) === expected)
+  );
+}
+
+function toolPolicyReferencesBrowser(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    (listContainsNormalized(value.allow, "browser") ||
+      listContainsNormalized(value.alsoAllow, "browser"))
+  );
+}
+
+function hasBrowserToolReference(cfg: OpenClawConfig): boolean {
+  if (toolPolicyReferencesBrowser(cfg.tools)) {
+    return true;
+  }
+  const agentList = cfg.agents?.list;
+  return Array.isArray(agentList)
+    ? agentList.some((entry) => isRecord(entry) && toolPolicyReferencesBrowser(entry.tools))
+    : false;
+}
+
+function hasSetupAutoEnableRelevantConfig(cfg: OpenClawConfig): boolean {
+  const entries = cfg.plugins?.entries;
+  if (isRecord(cfg.browser) || isRecord(cfg.acp) || hasBrowserToolReference(cfg)) {
+    return true;
+  }
+  if (isRecord(entries?.browser) || isRecord(entries?.acpx) || isRecord(entries?.xai)) {
+    return true;
+  }
+  if (isRecord(cfg.tools?.web) && isRecord((cfg.tools.web as Record<string, unknown>).x_search)) {
+    return true;
+  }
+  return hasConfiguredPluginConfigEntry(cfg);
+}
+
 function hasPluginEntries(cfg: OpenClawConfig): boolean {
   const entries = cfg.plugins?.entries;
   return !!entries && typeof entries === "object" && Object.keys(entries).length > 0;
 }
 
-function configMayNeedPluginManifestRegistry(cfg: OpenClawConfig): boolean {
+function configMayNeedPluginManifestRegistry(cfg: OpenClawConfig, env: NodeJS.ProcessEnv): boolean {
   const pluginEntries = cfg.plugins?.entries;
   if (Array.isArray(cfg.plugins?.allow) && cfg.plugins.allow.length > 0 && hasPluginEntries(cfg)) {
     return true;
@@ -279,6 +341,9 @@ function configMayNeedPluginManifestRegistry(cfg: OpenClawConfig): boolean {
     return true;
   }
   if (collectModelRefs(cfg).length > 0) {
+    return true;
+  }
+  if (hasConfiguredEmbeddedHarnessRuntime(cfg, env)) {
     return true;
   }
   const configuredChannels = cfg.channels as Record<string, unknown> | undefined;
@@ -318,8 +383,14 @@ export function configMayNeedPluginAutoEnable(
   if (collectModelRefs(cfg).length > 0) {
     return true;
   }
+  if (hasConfiguredEmbeddedHarnessRuntime(cfg, env)) {
+    return true;
+  }
   if (hasConfiguredWebSearchPluginEntry(cfg) || hasConfiguredWebFetchPluginEntry(cfg)) {
     return true;
+  }
+  if (!hasSetupAutoEnableRelevantConfig(cfg)) {
+    return false;
   }
   return (
     resolvePluginSetupAutoEnableReasons({
@@ -339,6 +410,8 @@ export function resolvePluginAutoEnableCandidateReason(
       return `${candidate.providerId} auth configured`;
     case "provider-model-configured":
       return `${candidate.modelRef} model configured`;
+    case "agent-harness-runtime-configured":
+      return `${candidate.runtime} agent harness runtime configured`;
     case "web-fetch-provider-selected":
       return `${candidate.providerId} web fetch provider selected`;
     case "plugin-web-search-configured":
@@ -391,6 +464,17 @@ export function resolveConfiguredPluginAutoEnableCandidates(params: {
     }
   }
 
+  for (const runtime of collectConfiguredAgentHarnessRuntimes(params.config, params.env)) {
+    const pluginIds = resolveAgentHarnessOwnerPluginIds(params.registry, runtime);
+    for (const pluginId of pluginIds) {
+      changes.push({
+        pluginId,
+        kind: "agent-harness-runtime-configured",
+        runtime,
+      });
+    }
+  }
+
   const webFetchProvider =
     typeof params.config.tools?.web?.fetch?.provider === "string"
       ? params.config.tools.web.fetch.provider
@@ -428,15 +512,17 @@ export function resolveConfiguredPluginAutoEnableCandidates(params: {
     }
   }
 
-  for (const entry of resolvePluginSetupAutoEnableReasons({
-    config: params.config,
-    env: params.env,
-  })) {
-    changes.push({
-      pluginId: entry.pluginId,
-      kind: "setup-auto-enable",
-      reason: entry.reason,
-    });
+  if (hasSetupAutoEnableRelevantConfig(params.config)) {
+    for (const entry of resolvePluginSetupAutoEnableReasons({
+      config: params.config,
+      env: params.env,
+    })) {
+      changes.push({
+        pluginId: entry.pluginId,
+        kind: "setup-auto-enable",
+        reason: entry.reason,
+      });
+    }
   }
 
   return changes;
@@ -564,14 +650,29 @@ function materializeConfiguredPluginEntryAllowlist(params: {
   return next;
 }
 
-function formatAutoEnableChange(entry: PluginAutoEnableCandidate): string {
-  let reason = resolvePluginAutoEnableCandidateReason(entry).trim();
-  const channelId = normalizeChatChannelId(entry.pluginId);
-  if (channelId) {
-    const label = getChatChannelMeta(channelId).label;
-    reason = reason.replace(new RegExp(`^${channelId}\\b`, "i"), label);
+function resolveChannelAutoEnableDisplayLabel(
+  entry: Extract<PluginAutoEnableCandidate, { kind: "channel-configured" }>,
+  manifestRegistry: PluginManifestRegistry,
+): string | undefined {
+  const builtInChannelId = normalizeChatChannelId(entry.channelId);
+  if (builtInChannelId) {
+    return getChatChannelMeta(builtInChannelId).label;
   }
-  return `${reason}, enabled automatically.`;
+  const plugin = manifestRegistry.plugins.find((record) => record.id === entry.pluginId);
+  return plugin?.channelConfigs?.[entry.channelId]?.label ?? plugin?.channelCatalogMeta?.label;
+}
+
+function formatAutoEnableChange(
+  entry: PluginAutoEnableCandidate,
+  manifestRegistry: PluginManifestRegistry,
+): string {
+  if (entry.kind === "channel-configured") {
+    const label = resolveChannelAutoEnableDisplayLabel(entry, manifestRegistry);
+    if (label) {
+      return `${label} configured, enabled automatically.`;
+    }
+  }
+  return `${resolvePluginAutoEnableCandidateReason(entry).trim()}, enabled automatically.`;
 }
 
 export function resolvePluginAutoEnableManifestRegistry(params: {
@@ -581,7 +682,7 @@ export function resolvePluginAutoEnableManifestRegistry(params: {
 }): PluginManifestRegistry {
   return (
     params.manifestRegistry ??
-    (configMayNeedPluginManifestRegistry(params.config)
+    (configMayNeedPluginManifestRegistry(params.config, params.env)
       ? loadPluginManifestRegistry({ config: params.config, env: params.env })
       : EMPTY_PLUGIN_MANIFEST_REGISTRY)
   );
@@ -601,6 +702,8 @@ export function materializePluginAutoEnableCandidatesInternal(params: {
     return { config: next, changes, autoEnabledReasons: {} };
   }
 
+  const preferOverCache = new Map<string, string[]>();
+
   for (const entry of params.candidates) {
     const builtInChannelId = normalizeChatChannelId(entry.pluginId);
     if (isPluginDenied(next, entry.pluginId) || isPluginExplicitlyDisabled(next, entry.pluginId)) {
@@ -615,6 +718,7 @@ export function materializePluginAutoEnableCandidatesInternal(params: {
         registry: params.manifestRegistry,
         isPluginDenied,
         isPluginExplicitlyDisabled,
+        preferOverCache,
       })
     ) {
       continue;
@@ -637,7 +741,7 @@ export function materializePluginAutoEnableCandidatesInternal(params: {
       ...(autoEnabledReasons.get(entry.pluginId) ?? []),
       reason,
     ]);
-    changes.push(formatAutoEnableChange(entry));
+    changes.push(formatAutoEnableChange(entry, params.manifestRegistry));
   }
 
   next = materializeConfiguredPluginEntryAllowlist({
