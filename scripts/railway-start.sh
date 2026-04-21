@@ -102,21 +102,48 @@ try {
     console.log("[railway-start] RAILWAY_PUBLIC_DOMAIN not set, skipping allowedOrigins config");
   }
 
-  // Bootstrap ZAI as default model provider when ZAI_API_KEY is set.
-  // Idempotent: only writes if the value is not already set to the ZAI model.
-  const zaiModel = "zai/glm-4.6";
-  // Future-proof stub for vision model — uncomment when ready:
-  // const zaiVisionModel = "zai/glm-4.6v-flash";
-  if (process.env.ZAI_API_KEY) {
+  // Bootstrap model provider with fallbacks.
+  // Priority: GROQ (if key set) > NVIDIA (if key set) > ZAI (legacy fallback).
+  // Idempotent: only writes if the value differs from current config.
+  let primaryModel = null;
+  let fallbackModels = [];
+
+  if (process.env.GROQ_API_KEY) {
+    primaryModel = "groq/meta/llama-3.3-70b-versatile";
+    // Add NVIDIA as fallback if available
+    if (process.env.NVIDIA_API_KEY) {
+      fallbackModels.push("nvidia/meta/llama-3.3-70b-instruct");
+    }
+    console.log("[railway-start] GROQ_API_KEY detected — using GROQ as primary model");
+  } else if (process.env.NVIDIA_API_KEY) {
+    primaryModel = "nvidia/meta/llama-3.3-70b-instruct";
+    console.log("[railway-start] NVIDIA_API_KEY detected — using NVIDIA as primary model");
+  } else if (process.env.ZAI_API_KEY) {
+    primaryModel = "zai/glm-4.6";
+    console.log("[railway-start] ZAI_API_KEY detected — using ZAI as fallback model");
+  }
+
+  if (primaryModel) {
     if (!cfg.agents) cfg.agents = {};
     if (!cfg.agents.defaults) cfg.agents.defaults = {};
     if (!cfg.agents.defaults.model) cfg.agents.defaults.model = {};
-    if (cfg.agents.defaults.model.primary !== zaiModel) {
-      console.log("[railway-start] Setting agents.defaults.model.primary =", zaiModel);
-      cfg.agents.defaults.model.primary = zaiModel;
+
+    const needsUpdate =
+      cfg.agents.defaults.model.primary !== primaryModel ||
+      JSON.stringify(cfg.agents.defaults.model.fallbacks || []) !== JSON.stringify(fallbackModels);
+
+    if (needsUpdate) {
+      console.log("[railway-start] Setting agents.defaults.model.primary =", primaryModel);
+      cfg.agents.defaults.model.primary = primaryModel;
+      if (fallbackModels.length > 0) {
+        console.log("[railway-start] Setting agents.defaults.model.fallbacks =", fallbackModels);
+        cfg.agents.defaults.model.fallbacks = fallbackModels;
+      } else if (cfg.agents.defaults.model.fallbacks) {
+        delete cfg.agents.defaults.model.fallbacks;
+      }
       dirty = true;
     } else {
-      console.log("[railway-start] agents.defaults.model.primary already set to ZAI model");
+      console.log("[railway-start] agents.defaults.model already correctly configured");
     }
   }
 
@@ -285,6 +312,46 @@ try {
     dirty = true;
   } else if (fs.existsSync(configPath)) {
     console.log("[railway-start] Hooks not enabled (OPENCLAW_HOOKS_ENABLED not true)");
+  }
+
+  // Configure cron job limits and session retention to reduce memory growth.
+  // Failed cron runs can spawn orphaned sessions; limit concurrency and clean old sessions.
+  if (!cfg.cron) cfg.cron = {};
+  if (cfg.cron.maxConcurrentRuns !== 1) {
+    console.log("[railway-start] Setting cron.maxConcurrentRuns = 1");
+    cfg.cron.maxConcurrentRuns = 1;
+    dirty = true;
+  }
+  if (cfg.cron.sessionRetention !== "4h") {
+    console.log("[railway-start] Setting cron.sessionRetention = 4h");
+    cfg.cron.sessionRetention = "4h";
+    dirty = true;
+  }
+  if (!cfg.cron.runLog) cfg.cron.runLog = {};
+  if (cfg.cron.runLog.maxBytes !== "1000000") {
+    console.log("[railway-start] Setting cron.runLog.maxBytes = 1000000");
+    cfg.cron.runLog.maxBytes = 1000000;
+    dirty = true;
+  }
+  if (cfg.cron.runLog.keepLines !== 1000) {
+    console.log("[railway-start] Setting cron.runLog.keepLines = 1000");
+    cfg.cron.runLog.keepLines = 1000;
+    dirty = true;
+  }
+
+  // Configure ACP session limits if ACP is being used (for managed skills / agents).
+  if (!cfg.acp) cfg.acp = {};
+  if (cfg.acp.maxConcurrentSessions !== 2) {
+    console.log("[railway-start] Setting acp.maxConcurrentSessions = 2");
+    cfg.acp.maxConcurrentSessions = 2;
+    dirty = true;
+  }
+
+  // Remove stale qwen-portal-auth plugin entry if it exists.
+  if (cfg.plugins && cfg.plugins.entries && cfg.plugins.entries["qwen-portal-auth"]) {
+    console.log("[railway-start] Removing stale plugins.entries.qwen-portal-auth");
+    delete cfg.plugins.entries["qwen-portal-auth"];
+    dirty = true;
   }
 
   if (dirty) {
