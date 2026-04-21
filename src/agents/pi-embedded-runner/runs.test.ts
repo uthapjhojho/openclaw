@@ -133,11 +133,13 @@ describe("pi-embedded runner run registry", () => {
       messages: [{ role: "user", content: [{ type: "text", text: "hello" }], timestamp: 1 }],
       inFlightPrompt: "keep going",
     });
-    expect(getActiveEmbeddedRunSnapshot("session-snapshot")).toEqual({
-      transcriptLeafId: "assistant-1",
-      messages: [{ role: "user", content: [{ type: "text", text: "hello" }], timestamp: 1 }],
-      inFlightPrompt: "keep going",
-    });
+    expect(getActiveEmbeddedRunSnapshot("session-snapshot")).toEqual(
+      expect.objectContaining({
+        transcriptLeafId: "assistant-1",
+        messages: [{ role: "user", content: [{ type: "text", text: "hello" }], timestamp: 1 }],
+        inFlightPrompt: "keep going",
+      }),
+    );
 
     clearActiveEmbeddedRun("session-snapshot", handle);
     expect(getActiveEmbeddedRunSnapshot("session-snapshot")).toBeUndefined();

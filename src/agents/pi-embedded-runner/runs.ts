@@ -30,6 +30,7 @@ export type ActiveEmbeddedRunSnapshot = {
   transcriptLeafId: string | null;
   messages?: unknown[];
   inFlightPrompt?: string;
+  createdAt?: number;
 };
 
 type EmbeddedRunWaiter = {
@@ -376,6 +377,9 @@ export function updateActiveEmbeddedRunSnapshot(
   if (!ACTIVE_EMBEDDED_RUNS.has(sessionId)) {
     return;
   }
+  if (!snapshot.createdAt) {
+    snapshot.createdAt = Date.now();
+  }
   ACTIVE_EMBEDDED_RUN_SNAPSHOTS.set(sessionId, snapshot);
 }
 
@@ -397,6 +401,34 @@ export function clearActiveEmbeddedRun(
   } else {
     diag.debug(`run clear skipped: sessionId=${sessionId} reason=handle_mismatch`);
   }
+}
+
+export function sweepOldSnapshots(maxAgeMs: number = 600_000): number {
+  const now = Date.now();
+  let sweptCount = 0;
+
+  for (const [sessionId, snapshot] of ACTIVE_EMBEDDED_RUN_SNAPSHOTS) {
+    if (!snapshot.createdAt) {
+      continue;
+    }
+    const ageMs = now - snapshot.createdAt;
+    if (ageMs >= maxAgeMs) {
+      const handle = ACTIVE_EMBEDDED_RUNS.get(sessionId);
+      if (!handle) {
+        ACTIVE_EMBEDDED_RUN_SNAPSHOTS.delete(sessionId);
+        EMBEDDED_RUN_MODEL_SWITCH_REQUESTS.delete(sessionId);
+        clearActiveRunSessionKeys(sessionId);
+        notifyEmbeddedRunEnded(sessionId);
+        sweptCount++;
+      }
+    }
+  }
+
+  if (sweptCount > 0) {
+    diag.debug(`swept old snapshots: count=${sweptCount} maxAgeMs=${maxAgeMs}`);
+  }
+
+  return sweptCount;
 }
 
 export const __testing = {

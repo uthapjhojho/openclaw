@@ -382,7 +382,20 @@ export const cronHandlers: GatewayRequestHandlers = {
         respond(true, { ok: true, ran: false, reason: "invalid-spec" }, undefined);
         return;
       }
-      throw error;
+      const errorMsg = formatErrorMessage(error);
+      const lower = errorMsg.toLowerCase();
+      if (
+        lower.includes("timeout") ||
+        lower.includes("timed out") ||
+        lower.includes("deadline exceeded")
+      ) {
+        respond(true, { ok: false, ran: false, reason: "timeout", error: errorMsg }, undefined);
+        return;
+      }
+      // Log the error and return a server error for other unexpected failures
+      context.logGateway.error("cron: enqueueRun failed", { jobId, error: errorMsg });
+      respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, `cron.run failed: ${errorMsg}`));
+      return;
     }
     respond(true, result, undefined);
   },
