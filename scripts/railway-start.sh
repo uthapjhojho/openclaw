@@ -109,7 +109,7 @@ try {
   let fallbackModels = [];
 
   if (process.env.GROQ_API_KEY) {
-    primaryModel = "groq/gpt-oss-120b";
+    primaryModel = "groq/openai/gpt-oss-120b";
     // Llama 3.3 70B as fallback if GPT OSS 120B unavailable
     fallbackModels.push("groq/llama-3.3-70b-versatile");
     if (process.env.NVIDIA_API_KEY) {
