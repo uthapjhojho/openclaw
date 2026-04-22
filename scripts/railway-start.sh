@@ -109,12 +109,13 @@ try {
   let fallbackModels = [];
 
   if (process.env.GROQ_API_KEY) {
-    primaryModel = "groq/llama-3.3-70b-versatile";
-    // Add NVIDIA as fallback if available
+    primaryModel = "groq/gpt-oss-120b";
+    // Llama 3.3 70B as fallback if GPT OSS 120B unavailable
+    fallbackModels.push("groq/llama-3.3-70b-versatile");
     if (process.env.NVIDIA_API_KEY) {
       fallbackModels.push("nvidia/llama-3.3-70b-instruct");
     }
-    console.log("[railway-start] GROQ_API_KEY detected — using GROQ as primary model");
+    console.log("[railway-start] GROQ_API_KEY detected — using GPT OSS 120B as primary model");
   } else if (process.env.NVIDIA_API_KEY) {
     primaryModel = "nvidia/llama-3.3-70b-instruct";
     console.log("[railway-start] NVIDIA_API_KEY detected — using NVIDIA as primary model");
