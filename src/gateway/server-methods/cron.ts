@@ -1,4 +1,3 @@
-import { listPotentialConfiguredChannelIds } from "../../channels/config-presence.js";
 import { loadConfig } from "../../config/config.js";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import { resolveCronDeliveryPreviews } from "../../cron/delivery-preview.js";
@@ -13,6 +12,7 @@ import { isInvalidCronSessionTargetIdError } from "../../cron/session-target.js"
 import type { CronDelivery, CronJob, CronJobCreate, CronJobPatch } from "../../cron/types.js";
 import { validateScheduleTimestamp } from "../../cron/validate-timestamp.js";
 import { formatErrorMessage } from "../../infra/errors.js";
+import { listConfiguredAnnounceChannelIdsForConfig } from "../../plugins/channel-plugin-ids.js";
 import { normalizeMessageChannel } from "../../utils/message-channel.js";
 import {
   ErrorCodes,
@@ -30,9 +30,11 @@ import {
 import type { GatewayRequestHandlers } from "./types.js";
 
 function listConfiguredAnnounceChannelIds(cfg: OpenClawConfig): string[] {
-  return listPotentialConfiguredChannelIds(cfg, process.env, {
-    includePersistedAuthState: false,
-  }).filter((channelId) => cfg.channels?.[channelId]?.enabled !== false);
+  return listConfiguredAnnounceChannelIdsForConfig({
+    config: cfg,
+    env: process.env,
+    cache: true,
+  });
 }
 
 function assertConfiguredAnnounceChannel(params: {
@@ -382,20 +384,7 @@ export const cronHandlers: GatewayRequestHandlers = {
         respond(true, { ok: true, ran: false, reason: "invalid-spec" }, undefined);
         return;
       }
-      const errorMsg = formatErrorMessage(error);
-      const lower = errorMsg.toLowerCase();
-      if (
-        lower.includes("timeout") ||
-        lower.includes("timed out") ||
-        lower.includes("deadline exceeded")
-      ) {
-        respond(true, { ok: false, ran: false, reason: "timeout", error: errorMsg }, undefined);
-        return;
-      }
-      // Log the error and return a server error for other unexpected failures
-      context.logGateway.error("cron: enqueueRun failed", { jobId, error: errorMsg });
-      respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, `cron.run failed: ${errorMsg}`));
-      return;
+      throw error;
     }
     respond(true, result, undefined);
   },

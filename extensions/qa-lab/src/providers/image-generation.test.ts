@@ -9,9 +9,26 @@ describe("QA provider image generation config", () => {
       requiredPluginIds: ["qa-channel"],
     });
 
-    expect(patch.plugins.allow).toEqual(["memory-core", "qa-channel"]);
+    expect(patch.plugins.allow).toEqual(["acpx", "memory-core", "qa-channel"]);
     expect(patch.agents.defaults.imageGenerationModel.primary).toBe("mock-openai/gpt-image-1");
     expect(patch.models?.providers["mock-openai"]?.baseUrl).toBe("http://127.0.0.1:44080/v1");
+  });
+
+  it("preserves already-allowed plugins when configuring image generation", () => {
+    const patch = buildQaImageGenerationConfigPatch({
+      providerMode: "mock-openai",
+      providerBaseUrl: "http://127.0.0.1:44080/v1",
+      requiredPluginIds: ["qa-channel"],
+      existingPluginIds: ["openai", "anthropic", "qa-channel"],
+    });
+
+    expect(patch.plugins.allow).toEqual([
+      "acpx",
+      "memory-core",
+      "openai",
+      "anthropic",
+      "qa-channel",
+    ]);
   });
 
   it("uses the selected mock provider for AIMock image generation", () => {
@@ -33,7 +50,7 @@ describe("QA provider image generation config", () => {
     });
 
     expect(patch.plugins).toEqual({
-      allow: ["memory-core", "openai", "qa-channel"],
+      allow: ["acpx", "memory-core", "openai", "qa-channel"],
       entries: {
         openai: {
           enabled: true,

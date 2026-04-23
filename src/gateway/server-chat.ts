@@ -619,8 +619,6 @@ export function createAgentEventHandler({
               evtErrorKind,
             );
           }
-          // Clean up buffered chat state for non-aborted finished runs
-          clearBufferedChatState(finished.clientRunId);
         } else if (!(opts?.skipChatErrorFinal && lifecyclePhase === "error")) {
           emitChatFinal(
             sessionKey,
@@ -632,8 +630,6 @@ export function createAgentEventHandler({
             evtStopReason,
             evtErrorKind,
           );
-          // Clean up buffered chat state for non-aborted runs without explicit chatLink
-          clearBufferedChatState(clientRunId);
         }
       } else {
         chatRunState.abortedRuns.delete(clientRunId);
