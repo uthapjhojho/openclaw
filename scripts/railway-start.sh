@@ -108,16 +108,7 @@ try {
   let primaryModel = null;
   let fallbackModels = [];
 
-  if (process.env.GROQ_API_KEY) {
-    primaryModel = "groq/openai/gpt-oss-20b";
-    if (process.env.ZAI_API_KEY) {
-      fallbackModels.push("zai/glm-4.6");
-    }
-    if (process.env.NVIDIA_API_KEY) {
-      fallbackModels.push("nvidia/llama-3.3-70b-instruct");
-    }
-    console.log("[railway-start] GROQ_API_KEY detected — using GPT OSS 20B as primary model");
-  } else if (process.env.ZAI_API_KEY) {
+  if (process.env.ZAI_API_KEY) {
     primaryModel = "zai/glm-4.6";
     if (process.env.NVIDIA_API_KEY) {
       fallbackModels.push("nvidia/llama-3.3-70b-instruct");
