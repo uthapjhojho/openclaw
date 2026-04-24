@@ -476,9 +476,12 @@ if ! python3 -c "import pip" 2>/dev/null; then
   echo "  pip not found — bootstrapping via get-pip.py..."
   curl -sS https://bootstrap.pypa.io/get-pip.py | python3 -q 2>&1 || echo "  WARNING: pip bootstrap failed"
 fi
-find /data/openclaw/skills -name "requirements.txt" -not -path "*/.imap-smtp-email.bak/*" | while read req; do
-  echo "  Installing: $req"
-  python3 -m pip install -q --break-system-packages -r "$req" 2>&1 || echo "  WARNING: pip install failed for $req"
+for skills_dir in /app/skills /data/openclaw/skills; do
+  [ -d "$skills_dir" ] || continue
+  find "$skills_dir" -name "requirements.txt" -not -path "*/.imap-smtp-email.bak/*" | while read req; do
+    echo "  Installing: $req"
+    python3 -m pip install -q --break-system-packages -r "$req" 2>&1 || echo "  WARNING: pip install failed for $req"
+  done
 done
 
 # Start the reverse proxy on Railway's public PORT.
