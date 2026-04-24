@@ -602,8 +602,8 @@ vi.mock("../tool-name-allowlist.js", () => ({
 }));
 
 vi.mock("../tool-split.js", () => ({
-  splitSdkTools: ({ tools }: { tools: unknown[] }) => ({
-    builtInTools: [],
+  splitSdkTools: ({ tools }: { tools: Array<{ name?: string }> }) => ({
+    builtInTools: tools.map((t) => t.name ?? ""),
     customTools: tools,
   }),
 }));

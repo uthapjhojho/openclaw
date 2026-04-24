@@ -16,7 +16,7 @@ describe("splitSdkTools", () => {
       tools,
       sandboxEnabled: true,
     });
-    expect(builtInTools).toBeUndefined();
+    expect(builtInTools).toEqual(["read", "exec", "edit", "write", "browser"]);
     expect(customTools.map((tool) => tool.name)).toEqual([
       "read",
       "exec",
@@ -31,7 +31,7 @@ describe("splitSdkTools", () => {
       tools,
       sandboxEnabled: false,
     });
-    expect(builtInTools).toBeUndefined();
+    expect(builtInTools).toEqual(["read", "exec", "edit", "write", "browser"]);
     expect(customTools.map((tool) => tool.name)).toEqual([
       "read",
       "exec",
