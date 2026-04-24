@@ -7,7 +7,7 @@ export type EmbeddedAgentSessionOptions = {
   modelRegistry: unknown;
   model: unknown;
   thinkingLevel: unknown;
-  tools: NonNullable<CreateAgentSessionOptions["tools"]>;
+  tools: CreateAgentSessionOptions["tools"];
   customTools: NonNullable<CreateAgentSessionOptions["customTools"]>;
   sessionManager: unknown;
   settingsManager: unknown;

@@ -7,12 +7,15 @@ import { toToolDefinitions } from "../pi-tool-definition-adapter.js";
 type AnyAgentTool = AgentTool;
 
 export function splitSdkTools(options: { tools: AnyAgentTool[]; sandboxEnabled: boolean }): {
-  builtInTools: NonNullable<CreateAgentSessionOptions["tools"]>;
+  builtInTools: NonNullable<CreateAgentSessionOptions["tools"]> | undefined;
   customTools: ReturnType<typeof toToolDefinitions>;
 } {
   const { tools } = options;
   return {
-    builtInTools: [],
+    // undefined = no built-in tool allowlist; all tools are passed via customTools.
+    // Do NOT use [] here: pi-coding-agent 0.68.0+ treats [] as a truthy allowlist
+    // that creates an empty Set, filtering out ALL tools from _toolRegistry.
+    builtInTools: undefined,
     customTools: toToolDefinitions(tools),
   };
 }
