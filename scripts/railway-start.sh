@@ -109,7 +109,7 @@ try {
   let fallbackModels = [];
 
   if (process.env.GROQ_API_KEY) {
-    primaryModel = "groq/meta/llama-3.3-70b-versatile";
+    primaryModel = "groq/llama-3.3-70b-versatile";
     if (process.env.NVIDIA_API_KEY) {
       fallbackModels.push("nvidia/llama-3.3-70b-instruct");
     }
