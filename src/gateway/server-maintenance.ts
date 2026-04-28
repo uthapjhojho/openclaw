@@ -1,4 +1,3 @@
-import { sweepOldSnapshots } from "../agents/pi-embedded-runner/runs.js";
 import type { HealthSummary } from "../commands/health.js";
 import { sweepStaleRunContexts } from "../infra/agent-events.js";
 import { cleanOldMedia } from "../media/store.js";
@@ -27,7 +26,10 @@ export function startGatewayMaintenanceTimers(params: {
   nodeSendToAllSubscribed: (event: string, payload: unknown) => void;
   getPresenceVersion: () => number;
   getHealthVersion: () => number;
-  refreshGatewayHealthSnapshot: (opts?: { probe?: boolean }) => Promise<HealthSummary>;
+  refreshGatewayHealthSnapshot: (opts?: {
+    probe?: boolean;
+    includeSensitive?: boolean;
+  }) => Promise<HealthSummary>;
   logHealth: { error: (msg: string) => void };
   dedupe: Map<string, DedupeEntry>;
   chatAbortControllers: Map<string, ChatAbortControllerEntry>;
@@ -160,8 +162,6 @@ export function startGatewayMaintenanceTimers(params: {
     }
     // Sweep stale agent run contexts (orphaned when lifecycle end/error is missed).
     sweepStaleRunContexts();
-    // Sweep old embedded run snapshots to prevent memory leak on timeout exhaustion.
-    sweepOldSnapshots();
   }, 60_000);
 
   if (typeof params.mediaCleanupTtlMs !== "number") {

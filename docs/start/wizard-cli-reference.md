@@ -3,11 +3,9 @@ summary: "Complete reference for CLI setup flow, auth/model setup, outputs, and 
 read_when:
   - You need detailed behavior for openclaw onboard
   - You are debugging onboarding results or integrating onboarding clients
-title: "CLI Setup Reference"
+title: "CLI setup reference"
 sidebarTitle: "CLI reference"
 ---
-
-# CLI Setup Reference
 
 This page is the full reference for `openclaw onboard`.
 For the short guide, see [Onboarding (CLI)](/start/wizard).
@@ -132,19 +130,19 @@ What you set:
   <Accordion title="OpenAI Code subscription (OAuth)">
     Browser flow; paste `code#state`.
 
-    Sets `agents.defaults.model` to `openai-codex/gpt-5.4` when model is unset or `openai/*`.
+    Sets `agents.defaults.model` to `openai-codex/gpt-5.5` when model is unset or already OpenAI-family.
 
   </Accordion>
   <Accordion title="OpenAI Code subscription (device pairing)">
     Browser pairing flow with a short-lived device code.
 
-    Sets `agents.defaults.model` to `openai-codex/gpt-5.4` when model is unset or `openai/*`.
+    Sets `agents.defaults.model` to `openai-codex/gpt-5.5` when model is unset or already OpenAI-family.
 
   </Accordion>
   <Accordion title="OpenAI API key">
     Uses `OPENAI_API_KEY` if present or prompts for a key, then stores the credential in auth profiles.
 
-    Sets `agents.defaults.model` to `openai/gpt-5.4` when model is unset, `openai/*`, or `openai-codex/*`.
+    Sets `agents.defaults.model` to `openai/gpt-5.5` when model is unset, `openai/*`, or `openai-codex/*`.
 
   </Accordion>
   <Accordion title="xAI (Grok) API key">
@@ -204,6 +202,7 @@ What you set:
     - `--custom-api-key` (optional; falls back to `CUSTOM_API_KEY`)
     - `--custom-provider-id` (optional)
     - `--custom-compatibility <openai|anthropic>` (optional; default `openai`)
+    - `--custom-image-input` / `--custom-text-input` (optional; override inferred model input capability)
 
   </Accordion>
   <Accordion title="Skip">
@@ -214,6 +213,7 @@ What you set:
 Model behavior:
 
 - Pick default model from detected options, or enter provider and model manually.
+- Custom-provider onboarding infers image support for common model IDs and asks only when the model name is unknown.
 - When onboarding starts from a provider auth choice, the model picker prefers
   that provider automatically. For Volcengine and BytePlus, the same preference
   also matches their coding-plan variants (`volcengine-plan/*`,
@@ -262,6 +262,7 @@ is only a legacy import source.
 Typical fields in `~/.openclaw/openclaw.json`:
 
 - `agents.defaults.workspace`
+- `agents.defaults.skipBootstrap` when `--skip-bootstrap` is passed
 - `agents.defaults.model` / `models.providers` (if Minimax chosen)
 - `tools.profile` (local onboarding defaults to `"coding"` when unset; existing explicit values are preserved)
 - `gateway.*` (mode, bind, auth, tailscale)
