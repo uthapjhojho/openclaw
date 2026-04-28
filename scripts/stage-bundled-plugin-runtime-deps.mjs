@@ -73,7 +73,15 @@ function makePluginOwnedTempDir(pluginDir, label) {
 
 function assertPathIsNotSymlink(targetPath, label) {
   try {
-    if (fs.lstatSync(targetPath).isSymbolicLink()) {
+    const stat = fs.lstatSync(targetPath);
+    if (stat.isSymbolicLink()) {
+      // Allow replacing symlinks that point to bundled runtime deps cache
+      // (created by previous runtime-postbuild runs or stage-bundled-plugin-runtime).
+      // The atomic replacement will safely move the symlink and its target.
+      const linkTarget = fs.readlinkSync(targetPath);
+      if (linkTarget.includes(".local/bundled-plugin-runtime-deps/")) {
+        return;
+      }
       throw new Error(`refusing to ${label} via symlinked path: ${targetPath}`);
     }
   } catch (error) {
