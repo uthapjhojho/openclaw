@@ -42,12 +42,20 @@ function targetPort(url) {
 }
 
 function forward(req, res, port) {
+  const cleaned = cleanHeaders(req.headers);
+
+  // Set Host header to loopback for gateway to recognize as local connection.
+  // This prevents token_mismatch errors in Control UI auth check.
+  if (port === GATEWAY_PORT) {
+    cleaned.host = "127.0.0.1:18789";
+  }
+
   const options = {
     hostname: "127.0.0.1",
     port,
     path: req.url,
     method: req.method,
-    headers: cleanHeaders(req.headers),
+    headers: cleaned,
   };
 
   const proxy = http.request(options, (proxyRes) => {
@@ -75,6 +83,12 @@ const server = http.createServer((req, res) => {
 server.on("upgrade", (req, clientSocket, head) => {
   const port = targetPort(req.url);
   const cleaned = cleanHeaders(req.headers);
+
+  // Set Host header to loopback for gateway to recognize as local connection.
+  // This prevents token_mismatch errors in Control UI auth check.
+  if (port === GATEWAY_PORT) {
+    cleaned.host = "127.0.0.1:18789";
+  }
 
   const upstream = net.connect(port, "127.0.0.1", () => {
     const requestLine = `${req.method} ${req.url} HTTP/1.1\r\n`;
