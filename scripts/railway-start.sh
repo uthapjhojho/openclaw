@@ -105,21 +105,17 @@ try {
   // Bootstrap model provider with fallbacks.
   // Priority: GROQ (if key set) > ZAI (if key set) > NVIDIA (if key set).
   // Idempotent: only writes if the value differs from current config.
-  // NOTE: groq/openai/gpt-oss-120b is incompatible with tool_choice:none on cron final turns.
-  // Ensure zai/glm-4.6 is available as a fallback for cron robustness.
+  // NOTE: groq/llama-3.3-70b-versatile is primary; groq/openai/gpt-oss-120b is fallback.
+  // groq/openai/gpt-oss-120b is incompatible with tool_choice:none on cron final turns.
   let primaryModel = null;
   let fallbackModels = [];
 
   if (process.env.GROQ_API_KEY) {
-    primaryModel = "groq/openai/gpt-oss-120b";
+    primaryModel = "groq/llama-3.3-70b-versatile";
     if (process.env.GROQ_API_KEY) {
-      fallbackModels.push("groq/llama-3.3-70b-versatile");
+      fallbackModels.push("groq/openai/gpt-oss-120b");
     }
-    // Add ZAI as a fallback for cron job robustness (groq/openai incompatible with tool_choice:none)
-    if (process.env.ZAI_API_KEY) {
-      fallbackModels.push("zai/glm-4.6");
-    }
-    console.log("[railway-start] GROQ_API_KEY detected — using GPT-OSS-120B as primary model");
+    console.log("[railway-start] GROQ_API_KEY detected — using llama-3.3-70b-versatile as primary model");
   } else if (process.env.ZAI_API_KEY) {
     primaryModel = "zai/glm-4.6";
     if (process.env.NVIDIA_API_KEY) {
