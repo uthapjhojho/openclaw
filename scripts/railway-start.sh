@@ -103,12 +103,18 @@ try {
   }
 
   // Bootstrap model provider with fallbacks.
-  // Priority: GROQ (if key set) > NVIDIA (if key set) > ZAI (legacy fallback).
+  // Priority: GROQ (if key set) > ZAI (if key set) > NVIDIA (if key set).
   // Idempotent: only writes if the value differs from current config.
   let primaryModel = null;
   let fallbackModels = [];
 
-  if (process.env.ZAI_API_KEY) {
+  if (process.env.GROQ_API_KEY) {
+    primaryModel = "groq/openai/gpt-oss-120b";
+    if (process.env.GROQ_API_KEY) {
+      fallbackModels.push("groq/llama-3.3-70b-versatile");
+    }
+    console.log("[railway-start] GROQ_API_KEY detected — using GPT-OSS-120B as primary model");
+  } else if (process.env.ZAI_API_KEY) {
     primaryModel = "zai/glm-4.6";
     if (process.env.NVIDIA_API_KEY) {
       fallbackModels.push("nvidia/llama-3.3-70b-instruct");
