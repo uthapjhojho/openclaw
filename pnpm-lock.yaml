@@ -202,6 +202,9 @@ importers:
       oxlint-tsgolint:
         specifier: ^0.22.0
         version: 0.22.0
+      playwright-core:
+        specifier: 1.59.1
+        version: 1.59.1
       signal-utils:
         specifier: 0.21.1
         version: 0.21.1(signal-polyfill@0.2.2)
